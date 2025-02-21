@@ -9,8 +9,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("main")
-logger.info("[bold green] Starting Thesus [/]", extra={"markup":True})
+logger.info("[bold green] Starting Thesus [/]", extra={"markup": True})
 
 if __name__ == "__main__":
-   agent = AgentThesus(None)
-   agent.train()
+    agent = AgentThesus(None)
+    agent.train()

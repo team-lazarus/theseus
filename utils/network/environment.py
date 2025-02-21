@@ -3,6 +3,7 @@ from enum import Enum
 from typing import List
 from random import randrange
 
+
 class Environment(object):
     """
     Environment
@@ -14,11 +15,12 @@ class Environment(object):
     tcp_client: TCPClient => communicates with the game
     action_space: ActionSpace => All the actions the player can take
     """
+
     def __init__(self):
         self.tcp_client = TCPClient()
 
         self.action_space = ActionSpace()
-    
+
     def initialise_environment(self):
         """
         Initialises environment
@@ -29,7 +31,7 @@ class Environment(object):
 
         return state
 
-    def step(self, action: int|str|List[int]):
+    def step(self, action: int | str | List[int]):
         """
         Executes an action in the environment
         Attributes:
@@ -60,6 +62,7 @@ class Environment(object):
         """
         return None, None, None
 
+
 class ActionSpace(object):
     """
     Defines the action space for an agent in a grid-based environment.
@@ -68,7 +71,7 @@ class ActionSpace(object):
     - Attacking in 8 directions
     - Phasing (on/off)
     - Dropping a bomb (on/off)
-    
+
     Attributes:
     -----------
     MOVE_DIMENSION: int
@@ -80,7 +83,7 @@ class ActionSpace(object):
     BOMB_DIMENSION: int
         Binary decision for dropping a bomb (1 means available, 0 means not used)
     """
-    
+
     MOVE_DIMENSION: int = 5
     ATTACK_DIMENSION: int = 5
     PHASE_DIMENSION: int = 1
@@ -92,18 +95,18 @@ class ActionSpace(object):
         Computes the total number of possible actions an agent can take.
         """
         return (
-            self.MOVE_DIMENSION * 
-            self.ATTACK_DIMENSION * 
-            self.PHASE_DIMENSION * 
-            self.BOMB_DIMENSION
+            self.MOVE_DIMENSION
+            * self.ATTACK_DIMENSION
+            * self.PHASE_DIMENSION
+            * self.BOMB_DIMENSION
         )
-    
+
     def sample(self) -> int:
         """
         Samples a random action from our action space
         """
-        return randrange(0,self.total_actions)
-    
+        return randrange(0, self.total_actions)
+
     @classmethod
     def interpret_action(cls, action: int) -> List[int]:
         """
@@ -160,9 +163,9 @@ class ActionSpace(object):
         """
         if len(actions) != 4:
             raise ValueError("Actions list must contain exactly 4 elements.")
-            
+
         move_dir, attack_dir, phase_on, bomb_on = actions
-        
+
         # Validate inputs
         if not (0 <= move_dir < cls.MOVE_DIMENSION):
             raise ValueError(f"Invalid move direction: {move_dir}")
@@ -172,12 +175,13 @@ class ActionSpace(object):
             raise ValueError(f"Invalid phase decision: {phase_on}")
         if not (0 <= bomb_on < cls.BOMB_DIMENSION + 1):  # Binary decision
             raise ValueError(f"Invalid bomb decision: {bomb_on}")
-        
+
         # Encode action using positional values
         action: int = move_dir
         action += attack_dir * cls.MOVE_DIMENSION
         action += phase_on * cls.MOVE_DIMENSION * cls.ATTACK_DIMENSION
-        action += bomb_on * cls.MOVE_DIMENSION * cls.ATTACK_DIMENSION * cls.PHASE_DIMENSION
-        
-        return action
+        action += (
+            bomb_on * cls.MOVE_DIMENSION * cls.ATTACK_DIMENSION * cls.PHASE_DIMENSION
+        )
 
+        return action
