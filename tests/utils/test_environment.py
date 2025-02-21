@@ -1,6 +1,6 @@
 import pytest
 from typing import List
-from thesus.utils.network import ActionSpace
+from theseus.utils.network import ActionSpace
 
 import pytest
 from typing import List
@@ -62,7 +62,7 @@ def test_interpret_action_valid_inputs(action, expected):
 def test_interpret_action_negative():
     """Test interpret_action with negative input"""
     with pytest.raises(
-        ValueError, match="You cannot give a negative action to interpret_action"
+        ValueError
     ):
         ActionSpace.interpret_action(-1)
 

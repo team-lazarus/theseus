@@ -1,7 +1,7 @@
 import logging
 from torch import nn
 from itertools import count
-from thesus.utils.network import Environment, ActionSpace
+from theseus.utils.network import Environment, ActionSpace
 
 
 class AgentThesus(object):

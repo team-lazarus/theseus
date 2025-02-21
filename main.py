@@ -1,7 +1,7 @@
 import logging
 from rich.logging import RichHandler
 
-from thesus import AgentThesus
+from theseus import AgentThesus
 
 FORMAT = "%(message)s"
 logging.basicConfig(
