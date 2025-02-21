@@ -1,6 +1,6 @@
-# Thesus
+# Theseus
 
-The one who traverses the Labrynth, this is a reinforcement learning agent & pipeline to play the game [Labrynth](https://github.com/team-lazarus/labrynth)
+The one who traverses the Labyrinth, this is a reinforcement learning agent & pipeline to play the game [Labyrinth](https://github.com/team-lazarus/labyrinth)
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ Follow these steps to set up the project:
 
 2. **Create a soft link for the root directory in the virtual environment's `lib` folder:**
    ```sh
-   ln -s /absolute/path/to/the/root/of/thesus /absolute/path/to/python/environment/lib/
+   ln -s /absolute/path/to/the/root/of/theseus /absolute/path/to/python/environment/lib/
    ```
 
 3. **Install dependencies from `requirements.txt`:**
@@ -69,4 +69,5 @@ To ensure code quality and maintainability, follow these guidelines:
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request following the best practices.
+
 
