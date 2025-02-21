@@ -70,8 +70,3 @@ To ensure code quality and maintainability, follow these guidelines:
 
 Contributions are welcome! Please open an issue or submit a pull request following the best practices.
 
-## License
-
-[Specify your license here, e.g., MIT, Apache 2.0, etc.]
-
-
