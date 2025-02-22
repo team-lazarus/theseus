@@ -84,8 +84,8 @@ class ActionSpace(object):
         Binary decision for dropping a bomb (1 means available, 0 means not used)
     """
 
-    MOVE_DIMENSION: int = 5
-    ATTACK_DIMENSION: int = 5
+    MOVE_DIMENSION: int = 9
+    ATTACK_DIMENSION: int = 9
     PHASE_DIMENSION: int = 1
     BOMB_DIMENSION: int = 1
 
