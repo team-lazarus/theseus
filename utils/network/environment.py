@@ -3,6 +3,7 @@ from enum import Enum
 from typing import List
 from random import randrange
 
+from theseus.utils import State
 
 class Environment(object):
     """
@@ -59,8 +60,10 @@ class Environment(object):
         """
         Parses the game response JSON object
         returns next_state, reward, terminated
+        
+        TODO: Chaitanya Modi
         """
-        return None, None, None
+        return State(), False, 0
 
 
 class ActionSpace(object):

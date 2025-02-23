@@ -22,7 +22,7 @@ class AgentTheseus(object):
         learning_rate=1e-3,
         discount_factor=0.95,
         training: bool = True,
-        epsilon_init: float = 1.0,
+        epsilon_init: float = 0.1,
         epsilon_decay: float = 0.9995,
         epsilon_min: float = 0.05,
         mini_batch_size: int = 32,
@@ -94,7 +94,7 @@ class AgentTheseus(object):
 
             if self.training:
                 self.memory.append((state, action, next_state, reward, terminated))
-                self.target_step_counter += 1
+                self.sync_steps_taken += 1
 
             state = next_state
             self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)

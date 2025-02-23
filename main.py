@@ -13,5 +13,5 @@ logger = logging.getLogger("main")
 logger.info("[bold green] Starting Thesus [/]", extra={"markup": True})
 
 if __name__ == "__main__":
-    agent = AgentTheseus(PolicyDQN(32,81), PolicyDQN(32,81))
+    agent = AgentTheseus(PolicyDQN(81), PolicyDQN(81))
     agent.train()
