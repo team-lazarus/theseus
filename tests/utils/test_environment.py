@@ -61,9 +61,7 @@ def test_interpret_action_valid_inputs(action, expected):
 
 def test_interpret_action_negative():
     """Test interpret_action with negative input"""
-    with pytest.raises(
-        ValueError
-    ):
+    with pytest.raises(ValueError):
         ActionSpace.interpret_action(-1)
 
 
