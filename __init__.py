@@ -1,1 +1,1 @@
-from .agent import AgentThesus
+from .agent import AgentTheseus
