@@ -60,8 +60,47 @@ class Environment(object):
         """
         Parses the game response JSON object
         returns next_state, reward, terminated
+
+        the current positions are global, ensure they are relative to hero
         
-        TODO: Chaitanya Modi
+        game_response:
+        {
+            "hero": {
+                "position": [x, y],
+                "health": 0-10,
+                "phase_cooldown": float,
+                "ability_cooldown": float,
+                "shoot_cooldown": float
+            },
+            "bullets": [
+                {
+                    "position": [x,y],
+                    "direction": float (radians), 
+                    "type": str
+                } ...
+            ],
+            "doors": [
+                [x_1, y_1, x_2, y_2]
+                ...
+            ],
+            "enemy": [
+                {
+                    "position": [x, y],
+                    "health": 0-10,
+                    "direction": float (radians),
+                    "type": str
+                } ...
+            ],
+            "backdoor": [x_1, y_1, x_2, y_2],
+            "walls" : [
+                [x_1, y_1, x_2, y_2], # contains bounding boxes for each wall
+                ....
+            ]
+
+        }
+
+        
+        TODO: Mukundan Gurumurthy
         """
         return State(), False, 0
 
