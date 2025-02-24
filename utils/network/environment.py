@@ -65,6 +65,9 @@ class Environment(object):
         
         game_response:
         {
+            "gun_reward" : float,
+            "hero_reward" : float,
+            "terminated" : bool,
             "hero": {
                 "position": [x, y],
                 "health": 0-10,
@@ -98,6 +101,9 @@ class Environment(object):
             ]
 
         }
+
+        returns:
+         State, terminated, reward
 
         
         TODO: Mukundan Gurumurthy
