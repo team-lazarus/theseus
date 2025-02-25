@@ -2,9 +2,12 @@ import torch
 import random
 import logging
 from torch import nn
-from typing import List
+from typing import List, Self
 import torch.optim as optim
 from itertools import count
+import yaml
+from datetime import datetime
+import os
 
 import theseus.constants as c
 from theseus.utils import ExperienceReplayMemory
@@ -27,6 +30,7 @@ class AgentTheseus(object):
         epsilon_min: float = 0.05,
         mini_batch_size: int = 32,
         target_sync_rate: int = 16,
+        sync_steps_taken: int = 0,
     ):
         self.training = training
         self.environment = Environment()
@@ -57,17 +61,58 @@ class AgentTheseus(object):
 
         self.reward_per_episode = []
         self.target_sync_rate = target_sync_rate
-        self.sync_steps_taken = 0
+        self.sync_steps_taken = sync_steps_taken
 
         if self.training:
             self.memory = ExperienceReplayMemory(c.REPLAY_MEMORY_SIZE)
 
             self.target_network.load_state_dict(self.policy_network.state_dict())
 
+    @classmethod
+    def load(cls, dump) -> Self:
+        fpath = f"model_saves/{dump}"
+        
+        with open(f"{fpath}/{dump}.yaml", "r") as f:
+            state = yaml.safe_load(f)
+
+        policy_network = torch.load(f"{fpath}/{state["policy_network"]}", weights_only=False)
+        target_network = torch.load(f"{fpath}/{state["target_network"]}", weights_only=False)
+
+        return cls(
+            policy_network,
+            target_network,
+            epsilon_init=state["epsilon"],
+            sync_steps_taken=state["sync_steps_taken"],
+        )
+
+    def dump(self):
+        path = f"model_{datetime.now().strftime(format="%d%m_%H%M")}"
+
+        if not os.path.exists(f"model_saves/{path}"):
+            os.makedirs(f"model_saves/{path}")
+
+        dpath = f"model_saves/{path}"
+
+
+        state = {
+            "policy_network": f"policy_{path}.pth",
+            "target_network": f"target_{path}.pth",
+            "epsilon": self.epsilon,
+            "sync_steps_taken": self.sync_steps_taken,
+        }
+        
+        torch.save(self.policy_network, f"{dpath}/{state["policy_network"]}")
+        torch.save(self.target_network, f"{dpath}/{state["target_network"]}")
+
+        with open(f"{dpath}/{path}.yaml", "w") as f:
+            yaml.dump(state, f)
+
     def train(self):
         epsilon = self.epsilon_init
         for episode in count():
-            self.logger.info(f"[blue]starting episode: {episode}[/]", extra={"markup": True})
+            self.logger.info(
+                f"[blue]starting episode: {episode}[/]", extra={"markup": True}
+            )
             self.train_episode()
             if self.training:
                 self.learn()
@@ -106,7 +151,7 @@ class AgentTheseus(object):
             mini_batch = self.memory.sample(self.mini_batch_size)
             self.optimize(mini_batch)
 
-        if self.sync_steps_taken > self.network_sync_rate:
+        if self.sync_steps_taken > self.target_sync_rate:
             self.target_network.load_state_dict(self.policy_network.state_dict())
             self.sync_steps_taken = 0
 
@@ -117,7 +162,7 @@ class AgentTheseus(object):
         actions = torch.stack(actions)
         next_states = torch.stack(next_states)
         rewards = torch.stack(rewards)
-        terminations = torch.tensor(terminations).float().to(device)
+        terminations = torch.tensor(terminations).float().to(self.device)
 
         with torch.no_grad():
             x = self.target_network.preprocess_state(next_state)
@@ -125,7 +170,7 @@ class AgentTheseus(object):
                 reward
                 + (1 - terminations)
                 * self.discount_factor
-                * target_network(x).max(dim=1)[0]
+                * self.target_network(x).max(dim=1)[0]
             )
 
         x = self.policy_network.preprocess_state(state)
