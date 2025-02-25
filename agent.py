@@ -69,13 +69,25 @@ class AgentTheseus(object):
             self.target_network.load_state_dict(self.policy_network.state_dict())
 
     @classmethod
-    def load(cls, dump: str | os.PathLike) -> Self:
+    def load(cls, dump: str | os.PathLike = "") -> Self | None:
         """
         Loads an AgentTheseus object from its YAML file.
         Requires the classes for policy_network and target_network
         to be defined wherever it is called.
+        In the case that no arg is passed, the lexicographically 
+        greatest saved file (as per its name) is chosen.
         """
+        if dump == "" and os.path.exists("model_saves"):
+            dir = os.listdir("model_saves")
+            dir.sort()
+
+            dump = dir[-1]
+            
+        else:
+            return
+            
         fpath = f"model_saves/{dump}"
+        
         
         with open(f"{fpath}/{dump}.yaml", "r") as f:
             state = yaml.safe_load(f)
@@ -90,20 +102,24 @@ class AgentTheseus(object):
             sync_steps_taken=state["sync_steps_taken"],
         )
 
-    def dump(self):
+    def dump(self) -> str | None:
         """
-        Dumps an AgentTheseus object into a yaml file.
+        Dumps an AgentTheseus object into a YAML file.
         Creates a directory structure as such:
         model_saves/
-        └── model_DDMM_hhmm 
-            ├── model_DDMM_hhmm.yaml
-            ├── policy_model_DDMM_hhmm.pth
-            └── target_model_DDMM_hhmm.pth
+        └── model_MMDD_hhmm 
+            ├── model_MMDD_hhmm.yaml
+            ├── policy_model_MMDD_hhmm.pth
+            └── target_model_MMDD_hhmm.pth
         
         For more properties to be saved simply add a kv-pair
         to the "state" dictionary.
+        For the sake of consistent lexicographical sorting it
+        is stored as month-day.
+        
+        returns directory path and None on error
         """
-        path = f"model_{datetime.now().strftime(format="%d%m_%H%M")}"
+        path = f"model_{datetime.now().strftime(format="%m%d_%H%M")}"
 
         if not os.path.exists(f"model_saves/{path}"):
             os.makedirs(f"model_saves/{path}")
@@ -123,6 +139,8 @@ class AgentTheseus(object):
 
         with open(f"{dpath}/{path}.yaml", "w") as f:
             yaml.dump(state, f)
+
+        return f"{dpath}/{path}"
 
     def train(self):
         epsilon = self.epsilon_init

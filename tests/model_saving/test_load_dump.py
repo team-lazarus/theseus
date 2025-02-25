@@ -11,8 +11,15 @@ class SimpleModel(nn.Module):
     def forward(self, x):
         return self.fc(x)
 
-model = SimpleModel(1, 1)
 
-agent = AgentTheseus(model, model)
+def test_agent_dump():
+    model = SimpleModel(1, 1)
+    agent = AgentTheseus(model, model)
+    result = agent.dump()
+    assert result is not None
 
-agent.dump()
+def test_agent_load():
+    agent = AgentTheseus.load()
+    assert agent is not None
+    assert agent.policy_network is not None
+    assert agent.policy_network is not None
