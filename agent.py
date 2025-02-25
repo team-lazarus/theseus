@@ -69,7 +69,12 @@ class AgentTheseus(object):
             self.target_network.load_state_dict(self.policy_network.state_dict())
 
     @classmethod
-    def load(cls, dump) -> Self:
+    def load(cls, dump: str | os.PathLike) -> Self:
+        """
+        Loads an AgentTheseus object from its YAML file.
+        Requires the classes for policy_network and target_network
+        to be defined wherever it is called.
+        """
         fpath = f"model_saves/{dump}"
         
         with open(f"{fpath}/{dump}.yaml", "r") as f:
@@ -86,6 +91,18 @@ class AgentTheseus(object):
         )
 
     def dump(self):
+        """
+        Dumps an AgentTheseus object into a yaml file.
+        Creates a directory structure as such:
+        model_saves/
+        └── model_DDMM_hhmm 
+            ├── model_DDMM_hhmm.yaml
+            ├── policy_model_DDMM_hhmm.pth
+            └── target_model_DDMM_hhmm.pth
+        
+        For more properties to be saved simply add a kv-pair
+        to the "state" dictionary.
+        """
         path = f"model_{datetime.now().strftime(format="%d%m_%H%M")}"
 
         if not os.path.exists(f"model_saves/{path}"):
