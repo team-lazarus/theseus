@@ -67,7 +67,9 @@ class AgentTheseus(object):
     def train(self):
         epsilon = self.epsilon_init
         for episode in count():
-            self.logger.info(f"[blue]starting episode: {episode}[/]", extra={"markup": True})
+            self.logger.info(
+                f"[blue]starting episode: {episode}[/]", extra={"markup": True}
+            )
             self.train_episode()
             if self.training:
                 self.learn()
