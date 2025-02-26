@@ -60,7 +60,7 @@ class State(object):
         self.backdoor = backdoor
         self.walls = walls
 
-        
+
     # def __hash__(self) -> int:
     #
     #     return 0

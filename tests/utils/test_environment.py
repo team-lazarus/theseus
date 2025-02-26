@@ -53,8 +53,13 @@ def test_total_actions_with_different_dimensions():
         (5, [0, 1, 0, 0]),  # Only attack direction
     ],
 )
-def test_interpret_action_valid_inputs(action, expected):
+def test_interpret_action_valid_inputs(action, expected, dimensions=[5, 5, 1, 1]):
     """Test interpret_action with various valid inputs"""
+    ActionSpace.MOVE_DIMENSION = dimensions[0]
+    ActionSpace.ATTACK_DIMENSION = dimensions[1]
+    ActionSpace.PHASE_DIMENSION = dimensions[2]
+    ActionSpace.BOMB_DIMENSION = dimensions[3]
+
     result = ActionSpace.interpret_action(action)
     assert result == expected
 
@@ -75,8 +80,13 @@ def test_interpret_action_negative():
         ([0, 1, 0, 0], 5),  # Only attack direction
     ],
 )
-def test_encode_action_valid_inputs(actions, expected):
+def test_encode_action_valid_inputs(actions, expected, dimensions=[5, 5, 1, 1]):
     """Test encode_action with various valid inputs"""
+    ActionSpace.MOVE_DIMENSION = dimensions[0]
+    ActionSpace.ATTACK_DIMENSION = dimensions[1]
+    ActionSpace.PHASE_DIMENSION = dimensions[2]
+    ActionSpace.BOMB_DIMENSION = dimensions[3]
+
     result = ActionSpace.encode_action(actions)
     assert result == expected
 
