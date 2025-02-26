@@ -1,27 +1,5 @@
-- repo: local
-  hooks:
-  - id: pytest
-    name: pytest
-    entry: pytest .
-    language: system
-    types: [python]
-    pass_filenames: false
-    always_run: true
-  - id: black
-    name: black
-    description: "Black: The uncompromising Python code formatter"
-    entry: black
-    language: python
-    minimum_pre_commit_version: 2.9.2
-    require_serial: true
-    types_or: [python, pyi]
-  - id: black-jupyter
-    name: black-jupyter
-    description:
-      "Black: The uncompromising Python code formatter (with Jupyter Notebook support)"
-    entry: black
-    language: python
-    minimum_pre_commit_version: 2.9.2
-    require_serial: true
-    types_or: [python, pyi, jupyter]
-    additional_dependencies: [".[jupyter]"]
+repos:
+-   repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+    -   id: black
