@@ -1,3 +1,7 @@
+from typing import Dict, Any, List
+from theseus.utils.actors import Player, Enemy, Bullet
+
+
 class State(object):
     """Stores the game state.
 
@@ -39,8 +43,24 @@ class State(object):
         * Implement state (Mukundan Gurumurthy)
     """
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        hero: Dict[str, Any],
+        bullets: List[Dict[str, Any]],
+        enemies: List[Dict[str, Any]],
+        doors: List[List[float]],
+        backdoor: List[float],
+        walls: List[List[float]],
+    ) -> None:
+        
+        self.hero = Player(hero)
+        self.bullets = map(Bullet, bullets)
+        self.enemies = map(Enemy, enemies)
+        self.doors = doors
+        self.backdoor = backdoor
+        self.walls = walls
 
-    def __hash__(self):
-        pass
+
+    # def __hash__(self) -> int:
+    #
+    #     return 0
