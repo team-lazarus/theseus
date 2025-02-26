@@ -5,6 +5,7 @@ from random import randrange
 
 from theseus.utils import State
 
+
 class Environment(object):
     """
     Environment
@@ -62,7 +63,7 @@ class Environment(object):
         returns next_state, reward, terminated
 
         the current positions are global, ensure they are relative to hero
-        
+
         game_response:
         {
             "gun_reward" : float,
@@ -78,7 +79,7 @@ class Environment(object):
             "bullets": [
                 {
                     "position": [x,y],
-                    "direction": float (radians), 
+                    "direction": float (radians),
                     "type": str
                 } ...
             ],
@@ -105,7 +106,7 @@ class Environment(object):
         returns:
          State, terminated, reward
 
-        
+
         TODO: Mukundan Gurumurthy
         """
         return State(), False, 0
