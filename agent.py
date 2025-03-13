@@ -74,7 +74,7 @@ class AgentTheseus(object):
         Loads an AgentTheseus object from its YAML file.
         Requires the classes for policy_network and target_network
         to be defined wherever it is called.
-        In the case that no arg is passed, the lexicographically 
+        In the case that no arg is passed, the lexicographically
         greatest saved file (as per its name) is chosen.
         """
         if dump == "" and os.path.exists("model_saves"):
@@ -82,18 +82,21 @@ class AgentTheseus(object):
             dir.sort()
 
             dump = dir[-1]
-            
+
         else:
             return
-            
+
         fpath = f"model_saves/{dump}"
-        
-        
+
         with open(f"{fpath}/{dump}.yaml", "r") as f:
             state = yaml.safe_load(f)
 
-        policy_network = torch.load(f"{fpath}/{state["policy_network"]}", weights_only=False)
-        target_network = torch.load(f"{fpath}/{state["target_network"]}", weights_only=False)
+        policy_network = torch.load(
+            f"{fpath}/{state["policy_network"]}", weights_only=False
+        )
+        target_network = torch.load(
+            f"{fpath}/{state["target_network"]}", weights_only=False
+        )
 
         return cls(
             policy_network,
@@ -107,16 +110,16 @@ class AgentTheseus(object):
         Dumps an AgentTheseus object into a YAML file.
         Creates a directory structure as such:
         model_saves/
-        └── model_MMDD_hhmm 
+        └── model_MMDD_hhmm
             ├── model_MMDD_hhmm.yaml
             ├── policy_model_MMDD_hhmm.pth
             └── target_model_MMDD_hhmm.pth
-        
+
         For more properties to be saved simply add a kv-pair
         to the "state" dictionary.
         For the sake of consistent lexicographical sorting it
         is stored as month-day.
-        
+
         returns directory path and None on error
         """
         path = f"model_{datetime.now().strftime(format="%m%d_%H%M")}"
@@ -126,14 +129,13 @@ class AgentTheseus(object):
 
         dpath = f"model_saves/{path}"
 
-
         state = {
             "policy_network": f"policy_{path}.pth",
             "target_network": f"target_{path}.pth",
             "epsilon": self.epsilon,
             "sync_steps_taken": self.sync_steps_taken,
         }
-        
+
         torch.save(self.policy_network, f"{dpath}/{state["policy_network"]}")
         torch.save(self.target_network, f"{dpath}/{state["target_network"]}")
 
@@ -200,9 +202,9 @@ class AgentTheseus(object):
         terminations = torch.tensor(terminations).float().to(self.device)
 
         with torch.no_grad():
-            x = self.target_network.preprocess_state(next_state)
+            x = self.target_network.preprocess_state(next_states)
             target_q = (
-                reward
+                rewards
                 + (1 - terminations)
                 * self.discount_factor
                 * self.target_network(x).max(dim=1)[0]
