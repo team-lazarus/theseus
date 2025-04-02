@@ -6,6 +6,7 @@ from theseus.models.GraphDQN.graph_rep import (
     GunGraph,
     HeroGraph,
 )  # Import the relevant classes
+from theseus.utils import State
 
 
 class GunGNN(torch.nn.Module):
@@ -15,7 +16,7 @@ class GunGNN(torch.nn.Module):
         self.conv2 = GCNConv(hidden_channels, hidden_channels)
         self.fc = torch.nn.Linear(hidden_channels, out_channels)
 
-    def preprocess_state(self, state):
+    def preprocess_state(self, state: State):
         graph = GunGraph(state)
         return graph.data
 
@@ -41,7 +42,7 @@ class HeroGNN(torch.nn.Module):
         )
         self.fc = torch.nn.Linear(hidden_channels, out_channels)
 
-    def preprocess_state(self, state):
+    def preprocess_state(self, state: State):
         graph = HeroGraph(state)
         return graph.data
 

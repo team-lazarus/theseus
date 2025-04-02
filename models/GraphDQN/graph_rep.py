@@ -1,13 +1,14 @@
 import torch
+from theseus.utils import State
 from torch_geometric.data import HeteroData
 import random
 
 
-def normalize(value, min_val, max_val):
+def normalize(value: float, min_val: float, max_val: float):
     return (value - min_val) / (max_val - min_val) if max_val > min_val else 0.0
 
 
-def random_state(num_enemies=3, num_bullets=2, num_doors=2, num_walls=3):
+def random_state(num_enemies: int=3, num_bullets: int=2, num_doors: int=2, num_walls: int=3):
     hero = {
         "position": [
             normalize(random.uniform(0, 10), 0, 10),
@@ -58,7 +59,7 @@ def random_state(num_enemies=3, num_bullets=2, num_doors=2, num_walls=3):
 
 
 class GunGraph:
-    def __init__(self, state):
+    def __init__(self, state: State):
         self.data = HeteroData()
         self.data["gun"].num_nodes = 1
         num_enemies = len(state.enemies)
@@ -66,7 +67,7 @@ class GunGraph:
 
         self.data["enemy"].x = torch.tensor(
             [
-                [e["position"][0], e["position"][1], e["type"], e["health"]]
+                [e.x, e.y, e.type_, e.health]
                 for e in state.enemies
             ],
             dtype=torch.float,
@@ -84,18 +85,18 @@ class GunGraph:
 
 
 class HeroGraph:
-    def __init__(self, state):
+    def __init__(self, state: State):
         self.data = HeteroData()
         self.data["hero"].num_nodes = 1
 
         self.data["hero"].x = torch.tensor(
             [
-                state.hero["position"][0],
-                state.hero["position"][1],
-                state.hero["health"],
-                state.hero["phase_cooldown"],
-                state.hero["ability_cooldown"],
-                state.hero["shoot_cooldown"],
+                state.hero.x,
+                state.hero.y,
+                state.hero.health,
+                state.hero.phase_cooldown,
+                state.hero.ability_cooldown,
+                state.hero.shoot_coooldown,
             ],
             dtype=torch.float,
         )
@@ -112,7 +113,7 @@ class HeroGraph:
 
         self.data["enemy"].x = torch.tensor(
             [
-                [e["position"][0], e["position"][1], e["type"], e["health"]]
+                [e.x, e.y, e.type_, e.health]
                 for e in state.enemies
             ],
             dtype=torch.float,
@@ -120,7 +121,7 @@ class HeroGraph:
 
         self.data["bullet"].x = torch.tensor(
             [
-                [b["position"][0], b["position"][1], b["direction"]]
+                [b.x, b.y, b.direction]
                 for b in state.bullets
             ],
             dtype=torch.float,

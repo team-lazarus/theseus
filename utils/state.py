@@ -54,8 +54,8 @@ class State(object):
     ) -> None:
         
         self.hero = Player(hero)
-        self.bullets = map(Bullet, bullets)
-        self.enemies = map(Enemy, enemies)
+        self.bullets = list(map(Bullet, bullets))
+        self.enemies = list(map(Enemy, enemies))
         self.doors = doors
         self.backdoor = backdoor
         self.walls = walls
