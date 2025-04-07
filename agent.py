@@ -200,15 +200,15 @@ class AgentTheseus(object):
         terminations = torch.tensor(terminations).float().to(self.device)
 
         with torch.no_grad():
-            x = self.target_network.preprocess_state(next_state)
+            x = self.target_network.preprocess_state(next_states)
             target_q = (
-                reward
+                rewards
                 + (1 - terminations)
                 * self.discount_factor
                 * self.target_network(x).max(dim=1)[0]
             )
 
-        x = self.policy_network.preprocess_state(state)
+        x = self.policy_network.preprocess_state(states)
         current_q = (
             self.policy_network(x)
             .gather(dim=1, index=actions.unsqueeze(dim=1))
