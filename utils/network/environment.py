@@ -109,7 +109,20 @@ class Environment(object):
 
         TODO: Mukundan Gurumurthy
         """
-        return State(), False, 0
+        hero = game_response["hero"]
+        enemies = game_response["enemy"]
+        bullets = game_response["bullets"]
+        doors = game_response["doors"]
+        backdoor = game_response["backdoor"]
+        walls = game_response["walls"]
+
+        terminated = bool(game_response["terminated"])
+
+        return (
+            State(hero, bullets, enemies, doors, backdoor, walls),
+            terminated,
+            (game_response["hero_reward"], game_response["gun_reward"]),
+        )
 
 
 class ActionSpace(object):

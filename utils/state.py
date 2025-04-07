@@ -19,8 +19,7 @@ class State(object):
             {
                 "position": [x, y],     # Bullet's coordinates
                 "direction": float,      # Direction in radians
-                "type": str             # Bullet type identifier
-            }
+                "type": str             # Bullet type identifier }
 
         enemies (List[Dict[str, Any]]): List of enemies. Each enemy is a dictionary:
             {

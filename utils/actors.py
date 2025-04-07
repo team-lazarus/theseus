@@ -44,7 +44,7 @@ class Player(object):
         self.health = status["health"]
         self.phase_cooldown = status["phase_cooldown"]
         self.ability_cooldown = status["ability_cooldown"]
-        self.shoot_coooldown = status["shoot_cooldown"]
+        self.shoot_cooldown = status["shoot_cooldown"]
 
 
 @dataclass
