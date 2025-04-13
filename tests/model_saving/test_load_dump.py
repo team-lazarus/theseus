@@ -3,11 +3,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+
 class SimpleModel(nn.Module):
     def __init__(self, input_size, output_size):
         super(SimpleModel, self).__init__()
         self.fc = nn.Linear(input_size, output_size)
-    
+
     def forward(self, x):
         return self.fc(x)
 
@@ -17,6 +18,7 @@ def test_agent_dump():
     agent = AgentTheseus(model, model)
     result = agent.dump()
     assert result is not None
+
 
 def test_agent_load():
     agent = AgentTheseus.load()

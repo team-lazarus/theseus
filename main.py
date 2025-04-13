@@ -58,7 +58,7 @@ def train():
         )
         return
 
-    agent.train(10)
+    agent.train(9999)
 
 
 # --- Main Execution ---

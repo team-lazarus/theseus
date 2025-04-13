@@ -2,6 +2,8 @@ import socket
 import json
 import logging
 
+logger = logging.getLogger("tcp_client")
+
 
 class TCPClient:
     def __init__(self, host="0.0.0.0", port=4200):
@@ -14,6 +16,7 @@ class TCPClient:
 
     def connect(self):
         """Establish connection to the server."""
+        logger.debug(f"connecting")
         try:
             self.socket.connect((self.host, self.port))
             self.connected = True
@@ -29,6 +32,7 @@ class TCPClient:
         Args:
             data: Data to send (will be converted to JSON if it's a dict)
         """
+        logger.debug(f"writing {data=}")
         if not self.connected:
             self.logger.error("[ERROR] Not connected to server")
             raise Exception("The TCP Client is not connected to the server")
@@ -53,6 +57,7 @@ class TCPClient:
         Returns:
             Decoded message as string or dict (if valid JSON), None if error
         """
+        logger.debug(f"reading")
         if not self.connected:
             self.logger.error("[ERROR] Not connected to server")
             raise Exception("The TCP Client is not connected to the server")

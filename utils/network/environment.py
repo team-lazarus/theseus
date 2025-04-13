@@ -54,11 +54,11 @@ class Environment(object):
 
         self.tcp_client.write(action)
         game_response = self.tcp_client.read()
-        
+
         # while game_response == None:
         #     print(game_response)
         #     game_response = self.tcp_client.read()
-            
+
         next_state, terminated, reward = self.parse_game_response(game_response)
 
         return next_state, reward, terminated
