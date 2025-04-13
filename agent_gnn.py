@@ -123,8 +123,8 @@ class AgentTheseusGNN:
         optimizer_class: Type[optim.Optimizer] = optim.AdamW,
         learning_rate: float = 1e-4,
         discount_factor: float = 0.99,
-        epsilon_init: float = 0.9,
-        epsilon_decay: float = 0.9995,
+        epsilon_init: float = 1,
+        epsilon_decay: float = 0.99975,
         epsilon_min: float = 0.05,
         mini_batch_size: int = 64,
         target_sync_rate: int = 500,
@@ -412,7 +412,7 @@ class AgentTheseusGNN:
                 task_id,
                 description=(
                     f"[cyan]Ep. {episode_num}[/cyan] [yellow]Step {time_alive}[/yellow] "
-                    f"| Epsilon: [b]{self.epsilon}[/b] "
+                    f"| Epsilon: [b]{self.epsilon:.4f}[/b] "
                     f"| AvgR Gun: [b]{avg_r_gun_disp:.2f}[/b] "
                     f"| AvgR Hero: [b]{avg_r_hero_disp:.2f}[/b]"
                 ),
@@ -605,8 +605,8 @@ class AgentTheseusGNN:
                  self.logger.error(f"Environment step returned invalid reward format: {reward_tuple}")
                  return next_state, 0.0, 0.0, True, True # Signal error
 
-            reward_hero: float = float(reward_tuple[0])
-            reward_gun: float = float(reward_tuple[1])
+            reward_hero: float = float(0 if reward_tuple[0] == None else reward_tuple[0])
+            reward_gun: float = float(0 if reward_tuple[1] == None else reward_tuple[1])
             terminated: bool = bool(terminated_flag)
             truncated: bool = bool(truncated_flag)
 
@@ -1016,7 +1016,7 @@ class AgentTheseusGNN:
                 "epsilon_min": self.epsilon_min,
                 "log_window_size": self.log_window_size,
                 "save_interval": self.save_interval,
-                "replay_memory_size": self.memory.capacity,
+                "replay_memory_size": len(self.memory),
                 "total_reward_hero": self.total_reward_hero,
                 "total_reward_gun": self.total_reward_gun,
                 "loss_fn_class": f"{type(self.loss_fn).__module__}.{type(self.loss_fn).__name__}",
