@@ -34,6 +34,8 @@ These classes are designed to wrap the dictionary data structures provided by th
 - Bullet wraps: {"position": [x, y], "direction": float, "type": str}
 
 """
+
+
 @dataclass
 class Player(object):
     def __init__(self, status: Dict[str, Any]) -> None:

@@ -8,7 +8,9 @@ def normalize(value: float, min_val: float, max_val: float):
     return (value - min_val) / (max_val - min_val) if max_val > min_val else 0.0
 
 
-def random_state(num_enemies: int=3, num_bullets: int=2, num_doors: int=2, num_walls: int=3):
+def random_state(
+    num_enemies: int = 3, num_bullets: int = 2, num_doors: int = 2, num_walls: int = 3
+):
     hero = {
         "position": [
             normalize(random.uniform(0, 10), 0, 10),
@@ -59,59 +61,76 @@ def random_state(num_enemies: int=3, num_bullets: int=2, num_doors: int=2, num_w
 
 
 class GunGraph:
-    def __init__(self, state: State):
+    """Represents the state focused on gun-enemy interactions."""
+
+    def __init__(self, state: State) -> None:
+        """Initializes the GunGraph HeteroData object."""
         self.data = HeteroData()
-        self.data["gun"].num_nodes = 1 # Gun node exists
+
+        self.data["gun"].num_nodes = 1
+        self.data["gun"].x = torch.ones((1, 1), dtype=torch.float)
+
         num_enemies = len(state.enemies)
         self.data["enemy"].num_nodes = num_enemies
+        enemy_features = [[e.x, e.y, e.type_, e.health] for e in state.enemies]
+        self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(
+            -1, 4
+        )
 
-        # --- FIX: Ensure enemy features are always 2D ---
-        enemy_features = [
-            [e.x, e.y, e.type_, e.health]
-            for e in state.enemies
-        ]
-        # Use .view() to ensure shape is [num_enemies, 4], even [0, 4] if empty
-        self.data["enemy"].x = torch.tensor(
-            enemy_features, dtype=torch.float
-        ).view(-1, 4)
-
-        # --- FIX: Handle empty edge index case ---
+        # Forward edge
         if num_enemies > 0:
-            self.data["gun", "shoots", "enemy"].edge_index = torch.tensor(
+            forward_edge_index = torch.tensor(
                 [[0] * num_enemies, list(range(num_enemies))], dtype=torch.long
             )
+            self.data["gun", "shoots", "enemy"].edge_index = forward_edge_index
+            # Reverse edge
+            self.data["enemy", "rev_shoots", "gun"].edge_index = forward_edge_index[
+                [1, 0]
+            ]
         else:
-            # Create an empty edge_index with correct shape [2, 0]
-            self.data["gun", "shoots", "enemy"].edge_index = torch.empty((2, 0), dtype=torch.long)
+            self.data["gun", "shoots", "enemy"].edge_index = torch.empty(
+                (2, 0), dtype=torch.long
+            )
+            self.data["enemy", "rev_shoots", "gun"].edge_index = torch.empty(
+                (2, 0), dtype=torch.long
+            )
 
-    def show_details(self):
+    def show_details(self) -> None:
+        """Prints details about the graph structure and tensors."""
         print("GunGraph Details:")
-        print("- Gun nodes:", self.data["gun"].num_nodes)
-        print("- Enemies:", self.data["enemy"].num_nodes)
-        # Add shape check for debugging
-        print("- Enemy Features Shape:", self.data["enemy"].x.shape)
-        print("- Shoots Edge Index Shape:", self.data["gun", "shoots", "enemy"].edge_index.shape)
+        print(
+            f"- Gun nodes: {self.data['gun'].num_nodes}, Features Shape: {self.data['gun'].x.shape}"
+        )
+        print(
+            f"- Enemy nodes: {self.data['enemy'].num_nodes}, Features Shape: {self.data['enemy'].x.shape}"
+        )
+        for edge_type in self.data.edge_types:
+            print(
+                f"- {edge_type} Edge Index Shape: {self.data[edge_type].edge_index.shape}"
+            )
 
 
 class HeroGraph:
-    def __init__(self, state: State):
+    """Represents the state focused on hero-centric interactions."""
+
+    def __init__(self, state: State) -> None:
+        """Initializes the HeroGraph HeteroData object."""
         self.data = HeteroData()
         self.data["hero"].num_nodes = 1
-
-        # --- Define Hero Features ---
         self.data["hero"].x = torch.tensor(
-            [[ # Add outer brackets
-                state.hero.x,
-                state.hero.y,
-                state.hero.health,
-                state.hero.phase_cooldown,
-                state.hero.ability_cooldown,
-                state.hero.shoot_cooldown, # Ensure correct attribute name
-            ]], # Add outer brackets
+            [
+                [
+                    state.hero.x,
+                    state.hero.y,
+                    state.hero.health,
+                    state.hero.phase_cooldown,
+                    state.hero.ability_cooldown,
+                    state.hero.shoot_cooldown,  # Check attribute name correctness
+                ]
+            ],
             dtype=torch.float,
-        )
+        )  # Shape [1, 6]
 
-        # --- Define Other Node Types and Features ---
         num_enemies = len(state.enemies)
         num_bullets = len(state.bullets)
         num_doors = len(state.doors)
@@ -123,74 +142,60 @@ class HeroGraph:
         self.data["wall"].num_nodes = num_walls
 
         enemy_features = [[e.x, e.y, e.type_, e.health] for e in state.enemies]
-        self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(-1, 4)
+        self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(
+            -1, 4
+        )
 
         bullet_features = [[b.x, b.y, b.direction] for b in state.bullets]
-        self.data["bullet"].x = torch.tensor(bullet_features, dtype=torch.float).view(-1, 3)
+        self.data["bullet"].x = torch.tensor(bullet_features, dtype=torch.float).view(
+            -1, 3
+        )
 
         self.data["door"].x = torch.tensor(state.doors, dtype=torch.float).view(-1, 4)
         self.data["wall"].x = torch.tensor(state.walls, dtype=torch.float).view(-1, 4)
 
-        # --- Define Forward Edge Indices ---
-        if num_enemies > 0:
-            self.data["hero", "defeats", "enemy"].edge_index = torch.tensor(
-                [[0] * num_enemies, list(range(num_enemies))], dtype=torch.long
-            )
-        else:
-             self.data["hero", "defeats", "enemy"].edge_index = torch.empty((2, 0), dtype=torch.long)
+        # Forward Edges
+        edge_types_forward = [
+            ("hero", "defeats", "enemy", num_enemies),
+            ("hero", "dodges", "bullet", num_bullets),
+            ("hero", "to_go_to", "door", num_doors),
+            ("hero", "sees_block", "wall", num_walls),
+        ]
+        for src, rel, dst, num_dst in edge_types_forward:
+            if num_dst > 0:
+                self.data[src, rel, dst].edge_index = torch.tensor(
+                    [[0] * num_dst, list(range(num_dst))], dtype=torch.long
+                )
+            else:
+                self.data[src, rel, dst].edge_index = torch.empty(
+                    (2, 0), dtype=torch.long
+                )
 
-        if num_bullets > 0:
-            self.data["hero", "dodges", "bullet"].edge_index = torch.tensor(
-                [[0] * num_bullets, list(range(num_bullets))], dtype=torch.long
-            )
-        else:
-             self.data["hero", "dodges", "bullet"].edge_index = torch.empty((2, 0), dtype=torch.long)
+        # Reverse Edges
+        edge_types_reverse = [
+            ("enemy", "rev_defeats", "hero", num_enemies),
+            ("bullet", "rev_dodges", "hero", num_bullets),
+            ("door", "rev_to_go_to", "hero", num_doors),
+            ("wall", "rev_sees_block", "hero", num_walls),
+        ]
+        for dst, rel_rev, src, num_dst in edge_types_reverse:
+            rel = rel_rev.replace("rev_", "")  # Find original relation name
+            if num_dst > 0:
+                original_edge_index = self.data[src, rel, dst].edge_index
+                self.data[dst, rel_rev, src].edge_index = original_edge_index[[1, 0]]
+            else:
+                self.data[dst, rel_rev, src].edge_index = torch.empty(
+                    (2, 0), dtype=torch.long
+                )
 
-        if num_doors > 0:
-            self.data["hero", "to_go_to", "door"].edge_index = torch.tensor(
-                [[0] * num_doors, list(range(num_doors))], dtype=torch.long
-            )
-        else:
-             self.data["hero", "to_go_to", "door"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-        if num_walls > 0:
-            self.data["hero", "sees_block", "wall"].edge_index = torch.tensor(
-                [[0] * num_walls, list(range(num_walls))], dtype=torch.long
-            )
-        else:
-             self.data["hero", "sees_block", "wall"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-        # --- ADD THE REVERSE EDGE CODE SNIPPET HERE ---
-        if num_enemies > 0:
-            # Original edge index for ("hero", "defeats", "enemy")
-            hero_defeats_enemy_edge_index = self.data["hero", "defeats", "enemy"].edge_index
-            # Reverse edge index: Swap rows 0 and 1
-            self.data["enemy", "rev_defeats", "hero"].edge_index = hero_defeats_enemy_edge_index[[1, 0]]
-        else:
-             self.data["enemy", "rev_defeats", "hero"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-        if num_bullets > 0:
-            hero_dodges_bullet_edge_index = self.data["hero", "dodges", "bullet"].edge_index
-            self.data["bullet", "rev_dodges", "hero"].edge_index = hero_dodges_bullet_edge_index[[1, 0]]
-        else:
-            self.data["bullet", "rev_dodges", "hero"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-        if num_doors > 0:
-            hero_to_go_to_door_edge_index = self.data["hero", "to_go_to", "door"].edge_index
-            self.data["door", "rev_to_go_to", "hero"].edge_index = hero_to_go_to_door_edge_index[[1, 0]]
-        else:
-            self.data["door", "rev_to_go_to", "hero"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-        if num_walls > 0:
-            hero_sees_block_wall_edge_index = self.data["hero", "sees_block", "wall"].edge_index
-            self.data["wall", "rev_sees_block", "hero"].edge_index = hero_sees_block_wall_edge_index[[1, 0]]
-        else:
-             self.data["wall", "rev_sees_block", "hero"].edge_index = torch.empty((2, 0), dtype=torch.long)
-
-    def show_details(self):
+    def show_details(self) -> None:
+        """Prints details about the graph structure and tensors."""
         print("HeroGraph Details:")
-        print("- Hero nodes:", self.data["hero"].num_nodes)
-        print("- Enemies:", self.data["enemy"].num_nodes)
-        print("- Bullets:", self.data["bullet"].num_nodes)
-        print("- Doors:", self.data["door"].num_nodes)
-        print("- Walls:", self.data["wall"].num_nodes)
+        for node_type in self.data.node_types:
+            print(
+                f"- {node_type} nodes: {self.data[node_type].num_nodes}, Features Shape: {self.data[node_type].x.shape}"
+            )
+        for edge_type in self.data.edge_types:
+            print(
+                f"- {edge_type} Edge Index Shape: {self.data[edge_type].edge_index.shape}"
+            )

@@ -51,14 +51,13 @@ class State(object):
         backdoor: List[float],
         walls: List[List[float]],
     ) -> None:
-        
+
         self.hero = Player(hero)
         self.bullets = list(map(Bullet, bullets))
         self.enemies = list(map(Enemy, enemies))
         self.doors = doors
         self.backdoor = backdoor
         self.walls = walls
-
 
     # def __hash__(self) -> int:
     #
