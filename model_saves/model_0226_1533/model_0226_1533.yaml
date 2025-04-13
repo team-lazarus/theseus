@@ -1,4 +1,0 @@
-epsilon: 0.1
-policy_network: policy_model_0226_1533.pth
-sync_steps_taken: 0
-target_network: target_model_0226_1533.pth
