@@ -115,6 +115,8 @@ class Environment(object):
 
         TODO: Mukundan Gurumurthy
         """
+        if type(game_response) == str:
+            game_response = json.loads(game_response)
         hero = game_response["hero"]
         enemies = game_response["enemy"]
         bullets = game_response["bullets"]

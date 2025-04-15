@@ -17,6 +17,7 @@ GUN_ACTION_SPACE_SIZE = 8
 LEARNING_RATE = 1e-4
 DISCOUNT_FACTOR = 0.99
 # ... etc ...
+MODEL_PATH = "theseus_ppo_20250414_231934"
 
 
 def train():
@@ -28,37 +29,40 @@ def train():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train_logger.info(f"Using device: {device}")
 
-    hero_policy = HeroGNN(
-        hidden_channels=HIDDEN_CHANNELS, out_channels=HERO_ACTION_SPACE_SIZE
-    )
-    hero_target = HeroGNN(
-        hidden_channels=HIDDEN_CHANNELS, out_channels=HERO_ACTION_SPACE_SIZE
-    )
-    gun_policy = GunGNN(
-        hidden_channels=HIDDEN_CHANNELS, out_channels=GUN_ACTION_SPACE_SIZE
-    )  # Add in_channels if needed
-    gun_target = GunGNN(
-        hidden_channels=HIDDEN_CHANNELS, out_channels=GUN_ACTION_SPACE_SIZE
-    )  # Add in_channels if needed
 
-    try:
-        agent = AgentTheseusGNN(
-            hero_policy_net=hero_policy,
-            hero_target_net=hero_target,
-            gun_policy_net=gun_policy,
-            gun_target_net=gun_target,
-            env=env,  # Pass the environment instance
-            learning_rate=LEARNING_RATE,
-            discount_factor=DISCOUNT_FACTOR,
+    agent = AgentTheseusGNN.load(MODEL_PATH)
+    if agent == None:
+        hero_policy = HeroGNN(
+            hidden_channels=HIDDEN_CHANNELS, out_channels=HERO_ACTION_SPACE_SIZE
         )
-        train_logger.info("AgentTheseusGNN initialized.")
-    except Exception as e:
-        train_logger.critical(
-            f"Failed to initialize AgentTheseusGNN: {e}", exc_info=True
+        hero_target = HeroGNN(
+            hidden_channels=HIDDEN_CHANNELS, out_channels=HERO_ACTION_SPACE_SIZE
         )
-        return
+        gun_policy = GunGNN(
+            hidden_channels=HIDDEN_CHANNELS, out_channels=GUN_ACTION_SPACE_SIZE
+        )  # Add in_channels if needed
+        gun_target = GunGNN(
+            hidden_channels=HIDDEN_CHANNELS, out_channels=GUN_ACTION_SPACE_SIZE
+        )  # Add in_channels if needed
 
-    agent.train(9999)
+        try:
+            agent = AgentTheseusGNN(
+                hero_policy_net=hero_policy,
+                hero_target_net=hero_target,
+                gun_policy_net=gun_policy,
+                gun_target_net=gun_target,
+                env=env,  # Pass the environment instance
+                learning_rate=LEARNING_RATE,
+                discount_factor=DISCOUNT_FACTOR,
+            )
+            train_logger.info("AgentTheseusGNN initialized.")
+        except Exception as e:
+            train_logger.critical(
+                f"Failed to initialize AgentTheseusGNN: {e}", exc_info=True
+            )
+            return
+
+    agent.train(49999)
 
 
 # --- Main Execution ---
