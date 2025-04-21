@@ -42,6 +42,7 @@ def train_ppo():
     train_logger = logging.getLogger("train_loop_ppo")
     train_logger.info("Initializing environment and PPO GNN agent...")
 
+    agent = None
     env = Environment()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train_logger.info(f"Using device: {device}")
@@ -49,7 +50,7 @@ def train_ppo():
     # --- Instantiate Actor and Critic Networks ---
     # CRITICAL ASSUMPTION: HeroGNN/GunGNN can output a single value when out_channels=1
     # If not, you need dedicated Critic GNN classes.
-    agent = AgentTheseusPPO.load(SAVED_MODEL)
+    #agent = AgentTheseusPPO.load(SAVED_MODEL)
     if agent == None:
         try:
             hero_actor = HeroGNN(

@@ -20,3 +20,9 @@ libva info: va_openDriver() returns 0
 
 (zen:47250): IBUS-WARNING **: 00:19:10.203: Create input context failed: Connection is closed..
 Crash Annotation GraphicsCriticalError: |[0][GFX1-]: Detect DeviceReset DeviceResetReason::FORCED_RESET DeviceResetDetectPlace::WR_SIMULATE in GPU process (t=8782.24) [GFX1-]: Detect DeviceReset DeviceResetReason::FORCED_RESET DeviceResetDetectPlace::WR_SIMULATE in GPU process
+Error: Failed to open Wayland display, fallback to X11. WAYLAND_DISPLAY='wayland-0' DISPLAY=':0'
+defaults/preferences/firefox.js:1386: prefs parse error: unknown keyword
+libva info: VA-API version 1.22.0
+libva info: Trying to open /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so
+libva info: Found init function __vaDriverInit_1_22
+libva info: va_openDriver() returns 0

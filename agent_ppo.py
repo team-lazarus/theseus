@@ -50,7 +50,7 @@ except ImportError as e:
 HERO_ACTION_SPACE_SIZE: int = 9
 GUN_ACTION_SPACE_SIZE: int = 8
 LOGGING_WINDOW: int = 50
-SAVE_INTERVAL: int = 200 # Episodes
+SAVE_INTERVAL: int = 5 # Episodes
 DEFAULT_HORIZON: int = 2048 # Steps per rollout collection
 DEFAULT_EPOCHS_PER_UPDATE: int = 10
 DEFAULT_MINI_BATCH_SIZE_PPO: int = 64
@@ -1049,6 +1049,280 @@ class AgentTheseusPPO:
             agent.total_reward_hero = state_info.get('total_reward_hero', 0.0)
             agent.total_reward_gun = state_info.get('total_reward_gun', 0.0)
             # PPO doesn't have epsilon or sync steps state to restore
+
+            # Ensure networks are in train mode after loading (PPO alternates eval/train)
+            agent.hero_actor_net.train()
+            agent.hero_critic_net.train()
+            agent.gun_actor_net.train()
+            agent.gun_critic_net.train()
+
+            logger.info(f"PPO Agent loaded successfully from {load_path_str}")
+            return agent
+
+        except Exception as e:
+            logger.error(f"Error instantiating AgentTheseusPPO during final load step: {e}", exc_info=True)
+            return None
+    def dump(self, save_dir: str = "model_saves_ppo") -> Optional[str]:
+        """Saves the PPO agent state, including network architecture details."""
+        timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name: str = f"theseus_ppo_{timestamp}"
+        dpath: str = os.path.join(save_dir, base_name)
+
+        try:
+            os.makedirs(dpath, exist_ok=True)
+            self.logger.info(f"Saving PPO agent state to directory: {dpath}")
+
+            filenames: Dict[str, str] = {
+                "hero_actor": "hero_actor_state.pth",
+                "hero_critic": "hero_critic_state.pth",
+                "gun_actor": "gun_actor_state.pth",
+                "gun_critic": "gun_critic_state.pth",
+                "hero_actor_optim": "hero_actor_optimizer.pth",
+                "hero_critic_optim": "hero_critic_optimizer.pth",
+                "gun_actor_optim": "gun_actor_optimizer.pth",
+                "gun_critic_optim": "gun_critic_optimizer.pth",
+                "config": f"{base_name}_config.yaml"
+            }
+
+            # Save network states
+            torch.save(self.hero_actor_net.state_dict(), os.path.join(dpath, filenames["hero_actor"]))
+            torch.save(self.hero_critic_net.state_dict(), os.path.join(dpath, filenames["hero_critic"]))
+            torch.save(self.gun_actor_net.state_dict(), os.path.join(dpath, filenames["gun_actor"]))
+            torch.save(self.gun_critic_net.state_dict(), os.path.join(dpath, filenames["gun_critic"]))
+
+            # Save optimizer states
+            torch.save(self.hero_actor_optimizer.state_dict(), os.path.join(dpath, filenames["hero_actor_optim"]))
+            torch.save(self.hero_critic_optimizer.state_dict(), os.path.join(dpath, filenames["hero_critic_optim"]))
+            torch.save(self.gun_actor_optimizer.state_dict(), os.path.join(dpath, filenames["gun_actor_optim"]))
+            torch.save(self.gun_critic_optimizer.state_dict(), os.path.join(dpath, filenames["gun_critic_optim"]))
+
+            state_info: Dict[str, Any] = {
+                "agent_type": "PPO",
+                "hero_actor_file": filenames["hero_actor"],
+                "hero_critic_file": filenames["hero_critic"],
+                "gun_actor_file": filenames["gun_actor"],
+                "gun_critic_file": filenames["gun_critic"],
+                "hero_actor_optim_file": filenames["hero_actor_optim"],
+                "hero_critic_optim_file": filenames["hero_critic_optim"],
+                "gun_actor_optim_file": filenames["gun_actor_optim"],
+                "gun_critic_optim_file": filenames["gun_critic_optim"],
+                # Store class paths assuming they are needed for reconstruction
+                "hero_actor_class": f"{type(self.hero_actor_net).__module__}.{type(self.hero_actor_net).__name__}",
+                "hero_critic_class": f"{type(self.hero_critic_net).__module__}.{type(self.hero_critic_net).__name__}",
+                "gun_actor_class": f"{type(self.gun_actor_net).__module__}.{type(self.gun_actor_net).__name__}",
+                "gun_critic_class": f"{type(self.gun_critic_net).__module__}.{type(self.gun_critic_net).__name__}",
+                 # --- Store Network Architecture Details ---
+                "hero_hidden_channels": self.hero_hidden_channels,
+                "gun_hidden_channels": self.gun_hidden_channels,
+                # Optional: store out_channels if they might differ from defaults
+                # "hero_out_channels": self.hero_actor_net.fc.out_features,
+                # "gun_out_channels": self.gun_actor_net.fc.out_features,
+                # ------------------------------------------
+                # PPO Hyperparameters
+                "learning_rate": self.hero_actor_optimizer.param_groups[0]['lr'], # Assume same LR for all
+                "discount_factor": self.discount_factor,
+                "horizon": self.horizon,
+                "epochs_per_update": self.epochs_per_update,
+                "mini_batch_size": self.mini_batch_size,
+                "clip_epsilon": self.clip_epsilon,
+                "gae_lambda": self.gae_lambda,
+                "entropy_coeff": self.entropy_coeff,
+                "vf_coeff": self.vf_coeff,
+                # Other relevant state
+                "log_window_size": self.log_window_size,
+                "save_interval": self.save_interval,
+                "total_reward_hero": self.total_reward_hero,
+                "total_reward_gun": self.total_reward_gun,
+                "optimizer_class": f"{type(self.hero_actor_optimizer).__module__}.{type(self.hero_actor_optimizer).__name__}",
+            }
+            yaml_path: str = os.path.join(dpath, filenames["config"])
+            with open(yaml_path, "w") as f:
+                yaml.dump(state_info, f, default_flow_style=False, sort_keys=False)
+
+            self.logger.info("PPO Agent state saved successfully.")
+            return dpath
+
+        except AttributeError as e:
+             self.logger.error(f"Failed to dump agent state due to missing attribute (likely hidden_channels): {e}", exc_info=True)
+             return None
+        except Exception as e:
+            self.logger.error(f"Failed to dump PPO agent state to {dpath}: {e}", exc_info=True)
+            return None
+
+    @classmethod
+    def load(cls, load_path: Union[str, os.PathLike]) -> Optional[Self]:
+        """Loads a PPO agent state from a checkpoint directory."""
+        logger = logging.getLogger("agent-theseus-ppo-load")
+        logger.info(f"Attempting to load PPO agent state from: {load_path}")
+
+        load_path_str: str = str(load_path)
+        if not os.path.isdir(load_path_str):
+            logger.error(f"Load path is not a valid directory: {load_path_str}")
+            return None
+
+        yaml_files = [f for f in os.listdir(load_path_str) if f.endswith('_config.yaml')]
+        if not yaml_files:
+            logger.error(f"No '_config.yaml' file found in: {load_path_str}")
+            return None
+        # Take the first one if multiple exist (e.g., if saving failed mid-way previously)
+        yaml_path: str = os.path.join(load_path_str, yaml_files[0])
+        logger.info(f"Using config file: {yaml_path}")
+
+        try:
+            with open(yaml_path, "r") as f:
+                state_info: Dict[str, Any] = yaml.safe_load(f)
+        except Exception as e:
+            logger.error(f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True)
+            return None
+
+        # --- Verify Agent Type ---
+        if state_info.get("agent_type") != "PPO":
+            logger.error(f"Config file indicates agent type is {state_info.get('agent_type')}, not PPO.")
+            return None
+
+        device: str = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Loading models onto device: {device}")
+
+        try:
+            def get_class(class_path: str) -> Type:
+                module_path, class_name = class_path.rsplit('.', 1)
+                module = importlib.import_module(module_path)
+                return getattr(module, class_name)
+
+            # --- Get Network Architecture Details ---
+            try:
+                hero_hidden = state_info['hero_hidden_channels']
+                gun_hidden = state_info['gun_hidden_channels']
+                logger.info(f"Loaded Hero Hidden Channels: {hero_hidden}")
+                logger.info(f"Loaded Gun Hidden Channels: {gun_hidden}")
+                # Optional: Load out_channels if saved
+                # hero_out = state_info.get('hero_out_channels', HERO_ACTION_SPACE_SIZE)
+                # gun_out = state_info.get('gun_out_channels', GUN_ACTION_SPACE_SIZE)
+            except KeyError as e:
+                logger.error(f"Missing required network architecture key '{e}' in config file {yaml_path}. "
+                             f"Cannot reconstruct networks.")
+                return None
+
+            # --- Reconstruct Networks ---
+            HeroActorClass = get_class(state_info['hero_actor_class'])
+            HeroCriticClass = get_class(state_info['hero_critic_class'])
+            GunActorClass = get_class(state_info['gun_actor_class'])
+            GunCriticClass = get_class(state_info['gun_critic_class'])
+
+            # Instantiate networks WITH hidden_channels (and optionally out_channels)
+            # Assuming actor/critic pairs share the same architecture params
+            hero_actor_net = HeroActorClass(hidden_channels=hero_hidden) #, out_channels=hero_out)
+            hero_critic_net = HeroCriticClass(hidden_channels=hero_hidden) #, out_channels=1) # Critic outputs single value
+            gun_actor_net = GunActorClass(hidden_channels=gun_hidden) #, out_channels=gun_out)
+            gun_critic_net = GunCriticClass(hidden_channels=gun_hidden) #, out_channels=1) # Critic outputs single value
+
+            # Load state dicts
+            def _load_state_dict(net: nn.Module, file_key: str):
+                file_path = os.path.join(load_path_str, state_info[file_key])
+                if not os.path.exists(file_path):
+                     raise FileNotFoundError(f"Network state file not found: {file_path}")
+                net.load_state_dict(torch.load(file_path, map_location=device))
+                logger.debug(f"Loaded state dict from: {file_path}")
+
+            _load_state_dict(hero_actor_net, "hero_actor_file")
+            _load_state_dict(hero_critic_net, "hero_critic_file")
+            _load_state_dict(gun_actor_net, "gun_actor_file")
+            _load_state_dict(gun_critic_net, "gun_critic_file")
+
+            logger.info("Network state dicts loaded successfully.")
+
+        except (ImportError, AttributeError, KeyError, FileNotFoundError, TypeError, Exception) as e:
+            # Catch TypeError here as well for constructor issues
+            logger.error(f"Error reconstructing or loading network models: {e}", exc_info=True)
+            return None
+
+        # --- Reconstruct Optimizers (AFTER moving networks to device) ---
+        try:
+            learning_rate = state_info.get("learning_rate", DEFAULT_LEARNING_RATE_PPO)
+            OptimizerClass = get_class(state_info.get('optimizer_class', 'torch.optim.AdamW'))
+
+            # Move networks to device BEFORE creating optimizers that need their params
+            hero_actor_net.to(device)
+            hero_critic_net.to(device)
+            gun_actor_net.to(device)
+            gun_critic_net.to(device)
+
+            hero_actor_optimizer = OptimizerClass(hero_actor_net.parameters(), lr=learning_rate)
+            hero_critic_optimizer = OptimizerClass(hero_critic_net.parameters(), lr=learning_rate)
+            gun_actor_optimizer = OptimizerClass(gun_actor_net.parameters(), lr=learning_rate)
+            gun_critic_optimizer = OptimizerClass(gun_critic_net.parameters(), lr=learning_rate)
+
+            # Load optimizer states if files exist
+            optim_files = ["hero_actor_optim", "hero_critic_optim", "gun_actor_optim", "gun_critic_optim"]
+            optimizers = [hero_actor_optimizer, hero_critic_optimizer, gun_actor_optimizer, gun_critic_optimizer]
+            for name, optim in zip(optim_files, optimizers):
+                optim_file_key = f"{name}_file"
+                if optim_file_key in state_info:
+                    optim_path = os.path.join(load_path_str, state_info[optim_file_key])
+                    if os.path.exists(optim_path):
+                        try:
+                             optim.load_state_dict(torch.load(optim_path, map_location=device))
+                             logger.info(f"{name.replace('_', ' ').title()} state loaded from {optim_path}.")
+                        except Exception as load_err:
+                             logger.warning(f"Could not load optimizer state for {name} from {optim_path}: {load_err}. Optimizer will be reinitialized.")
+                    else:
+                        logger.warning(f"{name.replace('_', ' ').title()} state file not found: {optim_path}. Optimizer will be reinitialized.")
+                else:
+                     logger.warning(f"Optimizer state file key '{optim_file_key}' not found in config. Optimizer will be reinitialized.")
+
+
+            logger.info("Optimizers reconstructed.")
+
+        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
+            logger.error(f"Error reconstructing or loading optimizers: {e}", exc_info=True)
+            return None
+
+        # --- Reconstruct Environment ---
+        try:
+             # Assuming Environment class can be instantiated without arguments
+             # If it needs args, they might need to be saved/loaded too
+             env = Environment()
+             logger.info("Environment instantiated.")
+        except Exception as e:
+             logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
+             # Decide if this is critical - maybe return None or continue without env?
+             return None # Likely critical for the agent
+
+        # --- Instantiate Agent with loaded state ---
+        try:
+            agent = cls(
+                hero_actor_net=hero_actor_net,
+                hero_critic_net=hero_critic_net,
+                gun_actor_net=gun_actor_net,
+                gun_critic_net=gun_critic_net,
+                env=env, # Pass the newly created env instance
+                optimizer_class=OptimizerClass,
+                learning_rate=learning_rate, # LR is set in optimizers already, but good to pass for consistency
+                discount_factor=state_info.get('discount_factor', DEFAULT_DISCOUNT_FACTOR_PPO),
+                horizon=state_info.get('horizon', DEFAULT_HORIZON),
+                epochs_per_update=state_info.get('epochs_per_update', DEFAULT_EPOCHS_PER_UPDATE),
+                mini_batch_size=state_info.get('mini_batch_size', DEFAULT_MINI_BATCH_SIZE_PPO),
+                clip_epsilon=state_info.get('clip_epsilon', DEFAULT_CLIP_EPSILON),
+                gae_lambda=state_info.get('gae_lambda', DEFAULT_GAE_LAMBDA),
+                entropy_coeff=state_info.get('entropy_coeff', DEFAULT_ENTROPY_COEFF),
+                vf_coeff=state_info.get('vf_coeff', DEFAULT_VF_COEFF),
+                log_window_size=state_info.get('log_window_size', LOGGING_WINDOW),
+                save_interval=state_info.get('save_interval', SAVE_INTERVAL),
+             )
+
+            # --- Restore specific state variables ---
+            # Re-assign the loaded optimizer instances to the agent
+            agent.hero_actor_optimizer = hero_actor_optimizer
+            agent.hero_critic_optimizer = hero_critic_optimizer
+            agent.gun_actor_optimizer = gun_actor_optimizer
+            agent.gun_critic_optimizer = gun_critic_optimizer
+
+            # Restore training progress metrics
+            agent.total_reward_hero = state_info.get('total_reward_hero', 0.0)
+            agent.total_reward_gun = state_info.get('total_reward_gun', 0.0)
+            # Note: Rolling deques (like episode_rewards_hero_deque) are usually not saved/loaded
+            # as they represent recent history, which becomes irrelevant after loading.
+            # total_steps is reset after each update, so no need to load.
 
             # Ensure networks are in train mode after loading (PPO alternates eval/train)
             agent.hero_actor_net.train()
