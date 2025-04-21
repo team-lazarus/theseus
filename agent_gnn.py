@@ -128,7 +128,7 @@ class AgentTheseusGNN:
         learning_rate: float = 1e-4,
         discount_factor: float = 0.99,
         epsilon_init: float = 1,
-        epsilon_decay: float = 0.99975,
+        epsilon_decay: float = 0.9999,
         epsilon_min: float = 0.05,
         mini_batch_size: int = 64,
         target_sync_rate: int = 500,
