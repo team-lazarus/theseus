@@ -25,6 +25,7 @@ try:
     )
     from rich.table import Table
     from rich.console import Console
+
     # Assuming these local imports exist and are correct
     from theseus.utils import State, ExperienceReplayMemory
     from theseus.utils.network import Environment
@@ -34,7 +35,9 @@ try:
 except ImportError as e:
     logging.basicConfig(level=logging.ERROR)
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to import necessary libraries: {e}. Please ensure all dependencies are installed.")
+    logger.error(
+        f"Failed to import necessary libraries: {e}. Please ensure all dependencies are installed."
+    )
     # Exit or raise exception if critical imports fail
     raise ImportError(f"Critical import failed: {e}") from e
 
@@ -111,6 +114,7 @@ class AgentTheseusGNN:
         gun_loss_deque: Deque for rolling gun loss.
         training_summary_data: List to store episode metrics for final summary.
     """
+
     def __init__(
         self,
         hero_policy_net: HeroGNN,
@@ -168,21 +172,29 @@ class AgentTheseusGNN:
 
         self.memory: ExperienceReplayMemory = ExperienceReplayMemory(replay_memory_size)
 
-        self.episode_rewards_hero_deque: Deque[float] = deque(maxlen=self.log_window_size)
-        self.episode_rewards_gun_deque: Deque[float] = deque(maxlen=self.log_window_size)
-        self.episode_time_alive_deque: Deque[int] = deque(maxlen=self.log_window_size) # New deque for time alive
+        self.episode_rewards_hero_deque: Deque[float] = deque(
+            maxlen=self.log_window_size
+        )
+        self.episode_rewards_gun_deque: Deque[float] = deque(
+            maxlen=self.log_window_size
+        )
+        self.episode_time_alive_deque: Deque[int] = deque(
+            maxlen=self.log_window_size
+        )  # New deque for time alive
         self.total_reward_hero: float = 0.0
         self.total_reward_gun: float = 0.0
         self.hero_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * 10)
         self.gun_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * 10)
 
-        self.training_summary_data: List[Dict[str, Union[int, float]]] = [] # For summary table
+        self.training_summary_data: List[Dict[str, Union[int, float]]] = (
+            []
+        )  # For summary table
 
         self.hero_target_net.load_state_dict(self.hero_policy_net.state_dict())
         self.gun_target_net.load_state_dict(self.gun_policy_net.state_dict())
         self.hero_target_net.eval()
         self.gun_target_net.eval()
-        self.console = Console() # For printing the final table
+        self.console = Console()  # For printing the final table
 
     def _validate_network(self, network: nn.Module, name: str) -> None:
         """
@@ -202,7 +214,9 @@ class AgentTheseusGNN:
                 f"{name} network must have a 'preprocess_state' method."
             )
 
-    def _update_metrics(self, ep_reward_hero: float, ep_reward_gun: float, time_alive: int) -> None:
+    def _update_metrics(
+        self, ep_reward_hero: float, ep_reward_gun: float, time_alive: int
+    ) -> None:
         """
         Updates rolling and cumulative reward metrics after an episode.
 
@@ -215,7 +229,7 @@ class AgentTheseusGNN:
         """
         self.episode_rewards_hero_deque.append(ep_reward_hero)
         self.episode_rewards_gun_deque.append(ep_reward_gun)
-        self.episode_time_alive_deque.append(time_alive) # Update time alive deque
+        self.episode_time_alive_deque.append(time_alive)  # Update time alive deque
         self.total_reward_hero += ep_reward_hero
         self.total_reward_gun += ep_reward_gun
 
@@ -282,7 +296,7 @@ class AgentTheseusGNN:
         self.logger.info(
             f"Starting training on {self.device} for {num_episodes or 'infinite'} episodes..."
         )
-        self.training_summary_data = [] # Reset summary data at the start of training
+        self.training_summary_data = []  # Reset summary data at the start of training
 
         progress_columns = [
             TextColumn("[progress.description]{task.description}"),
@@ -309,7 +323,9 @@ class AgentTheseusGNN:
                 "[cyan]Training Episodes...", total=total_episodes_for_progress
             )
 
-            episode_iterator = range(num_episodes) if num_episodes is not None else count()
+            episode_iterator = (
+                range(num_episodes) if num_episodes is not None else count()
+            )
             completed_episodes = 0
 
             try:
@@ -322,12 +338,14 @@ class AgentTheseusGNN:
                         self._log_episode_metrics(episode, time_alive)
 
                         # Store data for final summary
-                        self.training_summary_data.append({
-                            "Episode": episode + 1,
-                            "Reward_Hero": ep_reward_hero,
-                            "Reward_Gun": ep_reward_gun,
-                            "Time_Alive": time_alive,
-                        })
+                        self.training_summary_data.append(
+                            {
+                                "Episode": episode + 1,
+                                "Reward_Hero": ep_reward_hero,
+                                "Reward_Gun": ep_reward_gun,
+                                "Time_Alive": time_alive,
+                            }
+                        )
 
                         self._learn()
                         self._decay_epsilon()
@@ -353,12 +371,23 @@ class AgentTheseusGNN:
 
             finally:
                 if num_episodes is not None:
-                    final_desc = "[green]Training Finished" if completed_episodes == num_episodes else "[yellow]Training Stopped Early"
-                    progress.update(episode_task, description=final_desc, completed=completed_episodes)
+                    final_desc = (
+                        "[green]Training Finished"
+                        if completed_episodes == num_episodes
+                        else "[yellow]Training Stopped Early"
+                    )
+                    progress.update(
+                        episode_task,
+                        description=final_desc,
+                        completed=completed_episodes,
+                    )
                     # Display summary only if training ran for a defined number of episodes
                     self._display_training_summary(completed_episodes)
                 else:
-                    progress.update(episode_task, description="[yellow]Training Stopped (Infinite Mode)")
+                    progress.update(
+                        episode_task,
+                        description="[yellow]Training Stopped (Infinite Mode)",
+                    )
 
         self.logger.info("Training finished.")
 
@@ -392,19 +421,21 @@ class AgentTheseusGNN:
         truncated: bool = False
         episode_reward_hero: float = 0.0
         episode_reward_gun: float = 0.0
-        time_alive: int = 0 # Initialize time alive counter
+        time_alive: int = 0  # Initialize time alive counter
 
         while not terminated and not truncated:
-            time_alive += 1 # Increment time alive counter each step
+            time_alive += 1  # Increment time alive counter each step
 
             # Calculate current rolling averages for display
             avg_r_hero_disp = (
                 np.mean(self.episode_rewards_hero_deque)
-                if self.episode_rewards_hero_deque else 0.0
+                if self.episode_rewards_hero_deque
+                else 0.0
             )
             avg_r_gun_disp = (
                 np.mean(self.episode_rewards_gun_deque)
-                if self.episode_rewards_gun_deque else 0.0
+                if self.episode_rewards_gun_deque
+                else 0.0
             )
 
             # Update progress description with live metrics
@@ -438,7 +469,9 @@ class AgentTheseusGNN:
                 self.sync_steps_taken += 1
                 state = next_state
             elif not terminated and not truncated:
-                self.logger.warning(f"Episode {episode_num}: Env step returned None state, terminating episode at step {time_alive}.")
+                self.logger.warning(
+                    f"Episode {episode_num}: Env step returned None state, terminating episode at step {time_alive}."
+                )
                 terminated = True
 
             episode_reward_hero += reward_hero
@@ -485,10 +518,16 @@ class AgentTheseusGNN:
         if random.random() < self.epsilon:
             move_action: int = random.randrange(HERO_ACTION_SPACE_SIZE)
             shoot_action: int = random.randrange(GUN_ACTION_SPACE_SIZE)
-            self.logger.debug(f"Actions (Random): Move={move_action}, Shoot={shoot_action}")
+            self.logger.debug(
+                f"Actions (Random): Move={move_action}, Shoot={shoot_action}"
+            )
         else:
-            move_action_pred: Optional[int] = self._predict_action(self.hero_policy_net, state)
-            shoot_action_pred: Optional[int] = self._predict_action(self.gun_policy_net, state)
+            move_action_pred: Optional[int] = self._predict_action(
+                self.hero_policy_net, state
+            )
+            shoot_action_pred: Optional[int] = self._predict_action(
+                self.gun_policy_net, state
+            )
 
             move_action = (
                 move_action_pred
@@ -501,9 +540,13 @@ class AgentTheseusGNN:
                 else random.randrange(GUN_ACTION_SPACE_SIZE)
             )
             if move_action_pred is None or shoot_action_pred is None:
-                self.logger.warning(f"Action prediction failed, using random fallback. Move: {move_action} Shoot: {shoot_action}")
+                self.logger.warning(
+                    f"Action prediction failed, using random fallback. Move: {move_action} Shoot: {shoot_action}"
+                )
             else:
-                 self.logger.debug(f"Actions (Predicted): Move={move_action}, Shoot={shoot_action}")
+                self.logger.debug(
+                    f"Actions (Predicted): Move={move_action}, Shoot={shoot_action}"
+                )
 
         return move_action, shoot_action
 
@@ -522,7 +565,9 @@ class AgentTheseusGNN:
             The index of the predicted best action, or None if prediction fails.
         """
         try:
-            graph_data: Optional[Union[HeteroData, Batch]] = policy_net.preprocess_state(state)
+            graph_data: Optional[Union[HeteroData, Batch]] = (
+                policy_net.preprocess_state(state)
+            )
             if graph_data is None:
                 self.logger.warning(
                     f"Preprocessing failed for {type(policy_net).__name__}."
@@ -544,14 +589,18 @@ class AgentTheseusGNN:
                 return None
 
             if q_values.ndim > 1:
-                 if q_values.shape[0] == 1:
-                     q_values = q_values.squeeze(0)
-                 else:
-                     self.logger.error(f"Unexpected Q-value shape from {type(policy_net).__name__}: {q_values.shape}")
-                     return None
+                if q_values.shape[0] == 1:
+                    q_values = q_values.squeeze(0)
+                else:
+                    self.logger.error(
+                        f"Unexpected Q-value shape from {type(policy_net).__name__}: {q_values.shape}"
+                    )
+                    return None
 
             if q_values.numel() == 0:
-                self.logger.warning(f"{type(policy_net).__name__} Q-values became empty after processing.")
+                self.logger.warning(
+                    f"{type(policy_net).__name__} Q-values became empty after processing."
+                )
                 return None
 
             action: int = q_values.argmax().item()
@@ -589,23 +638,39 @@ class AgentTheseusGNN:
             step_result: Tuple = self.env.step(combined_action_list)
 
             if not isinstance(step_result, tuple) or len(step_result) < 3:
-                 raise TypeError(f"Environment step returned unexpected result format: {type(step_result)}")
+                raise TypeError(
+                    f"Environment step returned unexpected result format: {type(step_result)}"
+                )
 
             next_s, reward_tuple, terminated_flag = step_result[:3]
-            truncated_flag = step_result[3] if len(step_result) > 3 and isinstance(step_result[3], bool) else False
+            truncated_flag = (
+                step_result[3]
+                if len(step_result) > 3 and isinstance(step_result[3], bool)
+                else False
+            )
 
             next_state: Optional[State] = None
             if isinstance(next_s, State):
-                 next_state = next_s
-            elif next_s is not None and not bool(terminated_flag) and not bool(truncated_flag):
-                 self.logger.error(f"Environment step returned invalid non-terminal state type: {type(next_s)}")
-                 return None, 0.0, 0.0, True, True # Indicate critical failure
+                next_state = next_s
+            elif (
+                next_s is not None
+                and not bool(terminated_flag)
+                and not bool(truncated_flag)
+            ):
+                self.logger.error(
+                    f"Environment step returned invalid non-terminal state type: {type(next_s)}"
+                )
+                return None, 0.0, 0.0, True, True  # Indicate critical failure
 
             if not isinstance(reward_tuple, (tuple, list)) or len(reward_tuple) < 2:
-                 self.logger.error(f"Environment step returned invalid reward format: {reward_tuple}")
-                 return next_state, 0.0, 0.0, True, True # Signal error
+                self.logger.error(
+                    f"Environment step returned invalid reward format: {reward_tuple}"
+                )
+                return next_state, 0.0, 0.0, True, True  # Signal error
 
-            reward_hero: float = float(0 if reward_tuple[0] == None else reward_tuple[0])
+            reward_hero: float = float(
+                0 if reward_tuple[0] == None else reward_tuple[0]
+            )
             reward_gun: float = float(0 if reward_tuple[1] == None else reward_tuple[1])
             terminated: bool = bool(terminated_flag)
             truncated: bool = bool(truncated_flag)
@@ -626,7 +691,9 @@ class AgentTheseusGNN:
         if len(self.memory) < self.mini_batch_size:
             return
 
-        self.logger.debug(f"Performing learning step with batch size {self.mini_batch_size}")
+        self.logger.debug(
+            f"Performing learning step with batch size {self.mini_batch_size}"
+        )
         mini_batch: List[Tuple] = self.memory.sample(self.mini_batch_size)
         self._optimize_step(mini_batch)
         self._sync_target_networks_if_needed()
@@ -659,7 +726,9 @@ class AgentTheseusGNN:
                 terminations,
             ) = zip(*mini_batch)
         except ValueError as e:
-            self.logger.error(f"Error unpacking minibatch, likely incorrect format: {e}")
+            self.logger.error(
+                f"Error unpacking minibatch, likely incorrect format: {e}"
+            )
             return
 
         try:
@@ -671,8 +740,10 @@ class AgentTheseusGNN:
             )
 
             if h_graph_s is None or g_graph_s is None:
-                 self.logger.warning("Skipping optimization step: State preprocessing resulted in empty batches.")
-                 return
+                self.logger.warning(
+                    "Skipping optimization step: State preprocessing resulted in empty batches."
+                )
+                return
             # Note: h_graph_ns/g_graph_ns can validly be None if all next states were terminal or failed processing
 
         except ValueError:
@@ -681,17 +752,31 @@ class AgentTheseusGNN:
             )
             return
         except Exception as e:
-             self.logger.error(f"Unexpected error during batch preprocessing: {e}", exc_info=True)
-             return
+            self.logger.error(
+                f"Unexpected error during batch preprocessing: {e}", exc_info=True
+            )
+            return
 
         try:
-            move_actions_t: torch.Tensor = torch.tensor(move_actions, dtype=torch.long, device=self.device)
-            shoot_actions_t: torch.Tensor = torch.tensor(shoot_actions, dtype=torch.long, device=self.device)
-            hero_rewards_t: torch.Tensor = torch.tensor(hero_rewards, dtype=torch.float, device=self.device)
-            gun_rewards_t: torch.Tensor = torch.tensor(gun_rewards, dtype=torch.float, device=self.device)
-            non_terminal_mask: torch.Tensor = torch.tensor([not t for t in terminations], dtype=torch.bool, device=self.device)
+            move_actions_t: torch.Tensor = torch.tensor(
+                move_actions, dtype=torch.long, device=self.device
+            )
+            shoot_actions_t: torch.Tensor = torch.tensor(
+                shoot_actions, dtype=torch.long, device=self.device
+            )
+            hero_rewards_t: torch.Tensor = torch.tensor(
+                hero_rewards, dtype=torch.float, device=self.device
+            )
+            gun_rewards_t: torch.Tensor = torch.tensor(
+                gun_rewards, dtype=torch.float, device=self.device
+            )
+            non_terminal_mask: torch.Tensor = torch.tensor(
+                [not t for t in terminations], dtype=torch.bool, device=self.device
+            )
         except (TypeError, ValueError) as e:
-            self.logger.error(f"Error converting batch data to tensors: {e}", exc_info=True)
+            self.logger.error(
+                f"Error converting batch data to tensors: {e}", exc_info=True
+            )
             return
 
         self._calculate_and_apply_loss(
@@ -703,7 +788,7 @@ class AgentTheseusGNN:
             batch_next_states=h_graph_ns,
             rewards_t=hero_rewards_t,
             non_terminal_mask=non_terminal_mask,
-            loss_deque=self.hero_loss_deque
+            loss_deque=self.hero_loss_deque,
         )
 
         self._calculate_and_apply_loss(
@@ -715,7 +800,7 @@ class AgentTheseusGNN:
             batch_next_states=g_graph_ns,
             rewards_t=gun_rewards_t,
             non_terminal_mask=non_terminal_mask,
-            loss_deque=self.gun_loss_deque
+            loss_deque=self.gun_loss_deque,
         )
 
     def _preprocess_batch(
@@ -723,7 +808,7 @@ class AgentTheseusGNN:
         states: Tuple[Optional[State], ...],
         net1: nn.Module,
         net2: nn.Module,
-        net_type: str
+        net_type: str,
     ) -> Tuple[Optional[Batch], Optional[Batch]]:
         """
         Preprocesses a batch of states using two networks.
@@ -757,15 +842,20 @@ class AgentTheseusGNN:
                     graphs2_list.append(graph2)
                     valid_indices.append(i)
                 else:
-                     self.logger.debug(f"Preprocessing returned None for state index {i} using {net_type} networks.")
+                    self.logger.debug(
+                        f"Preprocessing returned None for state index {i} using {net_type} networks."
+                    )
             except Exception as e:
                 self.logger.warning(
-                    f"Error preprocessing state index {i} in batch using {net_type} networks: {e}", exc_info=False
+                    f"Error preprocessing state index {i} in batch using {net_type} networks: {e}",
+                    exc_info=False,
                 )
 
         if not graphs1_list:
-             self.logger.warning(f"Preprocessing yielded no valid graphs for the {net_type} batch.")
-             return None, None
+            self.logger.warning(
+                f"Preprocessing yielded no valid graphs for the {net_type} batch."
+            )
+            return None, None
 
         try:
             batch1: Batch = Batch.from_data_list(graphs1_list).to(self.device)
@@ -774,7 +864,10 @@ class AgentTheseusGNN:
             # in the loss calculation, but often the non_terminal_mask suffices.
             return batch1, batch2
         except Exception as e:
-            self.logger.error(f"Error creating Batch object from data list for {net_type} nets: {e}", exc_info=True)
+            self.logger.error(
+                f"Error creating Batch object from data list for {net_type} nets: {e}",
+                exc_info=True,
+            )
             return None, None
 
     def _calculate_and_apply_loss(
@@ -787,7 +880,7 @@ class AgentTheseusGNN:
         batch_next_states: Optional[Batch],
         rewards_t: torch.Tensor,
         non_terminal_mask: torch.Tensor,
-        loss_deque: Deque[float]
+        loss_deque: Deque[float],
     ) -> None:
         """
         Calculates DQN loss, performs backpropagation, and optimizer step.
@@ -814,35 +907,51 @@ class AgentTheseusGNN:
                 dim=1, index=actions_t.unsqueeze(dim=1)
             ).squeeze(dim=1)
         except Exception as e:
-            self.logger.error(f"Error getting current Q-values from {type(policy_net).__name__}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error getting current Q-values from {type(policy_net).__name__}: {e}",
+                exc_info=True,
+            )
             return
 
         next_q_values: torch.Tensor = torch.zeros_like(rewards_t, device=self.device)
-        if non_terminal_mask.any() and batch_next_states is not None and batch_next_states.num_graphs > 0:
-             # Ensure batch_next_states corresponds only to non-terminal states if filtered during preprocessing
-             # Or handle potential misalignment if not filtered strictly.
-             num_non_terminal = non_terminal_mask.sum().item()
-             if batch_next_states.num_graphs != num_non_terminal:
-                  self.logger.warning(f"Potential mismatch: {num_non_terminal} non-terminal states but {batch_next_states.num_graphs} graphs in next_state batch for {type(target_net).__name__}. Ensure preprocessing filters correctly or loss calculation handles alignment.")
-                  # Attempting to proceed might lead to errors or incorrect targets.
-                  # Consider returning here or implementing robust alignment based on valid_indices from preprocessing.
-                  # For simplicity, we proceed assuming alignment or that target_net handles it.
+        if (
+            non_terminal_mask.any()
+            and batch_next_states is not None
+            and batch_next_states.num_graphs > 0
+        ):
+            # Ensure batch_next_states corresponds only to non-terminal states if filtered during preprocessing
+            # Or handle potential misalignment if not filtered strictly.
+            num_non_terminal = non_terminal_mask.sum().item()
+            if batch_next_states.num_graphs != num_non_terminal:
+                self.logger.warning(
+                    f"Potential mismatch: {num_non_terminal} non-terminal states but {batch_next_states.num_graphs} graphs in next_state batch for {type(target_net).__name__}. Ensure preprocessing filters correctly or loss calculation handles alignment."
+                )
+                # Attempting to proceed might lead to errors or incorrect targets.
+                # Consider returning here or implementing robust alignment based on valid_indices from preprocessing.
+                # For simplicity, we proceed assuming alignment or that target_net handles it.
 
-             target_net.eval()
-             with torch.no_grad():
-                 try:
-                     target_next_q_all: torch.Tensor = target_net(batch_next_states)
-                     max_target_next_q: torch.Tensor = target_next_q_all.max(dim=1)[0]
-                     # Fill only non-terminal entries. Assumes max_target_next_q aligns with the non-terminal subset.
-                     if len(max_target_next_q) == num_non_terminal: # Basic alignment check
+            target_net.eval()
+            with torch.no_grad():
+                try:
+                    target_next_q_all: torch.Tensor = target_net(batch_next_states)
+                    max_target_next_q: torch.Tensor = target_next_q_all.max(dim=1)[0]
+                    # Fill only non-terminal entries. Assumes max_target_next_q aligns with the non-terminal subset.
+                    if (
+                        len(max_target_next_q) == num_non_terminal
+                    ):  # Basic alignment check
                         next_q_values[non_terminal_mask] = max_target_next_q
-                     else:
-                         # Log the mismatch if sizes don't match after the check above
-                         self.logger.error(f"Alignment error: Cannot assign {len(max_target_next_q)} target Q-values to {num_non_terminal} non-terminal states for {type(target_net).__name__}. Check preprocessing and batch alignment.")
-                         # Target Q will remain 0 for these states if assignment fails
+                    else:
+                        # Log the mismatch if sizes don't match after the check above
+                        self.logger.error(
+                            f"Alignment error: Cannot assign {len(max_target_next_q)} target Q-values to {num_non_terminal} non-terminal states for {type(target_net).__name__}. Check preprocessing and batch alignment."
+                        )
+                        # Target Q will remain 0 for these states if assignment fails
 
-                 except Exception as e:
-                      self.logger.error(f"Error getting target Q-values from {type(target_net).__name__}: {e}", exc_info=True)
+                except Exception as e:
+                    self.logger.error(
+                        f"Error getting target Q-values from {type(target_net).__name__}: {e}",
+                        exc_info=True,
+                    )
 
         target_q: torch.Tensor = rewards_t + (self.discount_factor * next_q_values)
         target_q = target_q.detach()
@@ -859,7 +968,10 @@ class AgentTheseusGNN:
             self.logger.debug(f"Loss ({type(policy_net).__name__}): {loss_value:.4f}")
 
         except Exception as e:
-             self.logger.error(f"Error during loss calculation or optimization for {type(policy_net).__name__}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error during loss calculation or optimization for {type(policy_net).__name__}: {e}",
+                exc_info=True,
+            )
 
     def _sync_target_networks_if_needed(self) -> None:
         """
@@ -880,15 +992,17 @@ class AgentTheseusGNN:
                 self.sync_steps_taken = 0
                 self.logger.info("Target networks synced successfully.")
             except Exception as e:
-                 self.logger.error(f"Failed to sync target networks: {e}", exc_info=True)
-                 self.sync_steps_taken = 0
+                self.logger.error(f"Failed to sync target networks: {e}", exc_info=True)
+                self.sync_steps_taken = 0
 
     def _decay_epsilon(self) -> None:
         """Decays the exploration rate (epsilon) according to the decay factor."""
         old_epsilon = self.epsilon
         self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
         if old_epsilon != self.epsilon:
-             self.logger.debug(f"Epsilon decayed from {old_epsilon:.4f} to {self.epsilon:.4f}")
+            self.logger.debug(
+                f"Epsilon decayed from {old_epsilon:.4f} to {self.epsilon:.4f}"
+            )
 
     def _save_checkpoint_if_needed(self, episode: int) -> None:
         """
@@ -897,8 +1011,14 @@ class AgentTheseusGNN:
         Args:
             episode: The current episode index.
         """
-        if self.save_interval > 0 and episode > 0 and (episode + 1) % self.save_interval == 0:
-            self.logger.info(f"Reached save interval at episode {episode}. Saving checkpoint...")
+        if (
+            self.save_interval > 0
+            and episode > 0
+            and (episode + 1) % self.save_interval == 0
+        ):
+            self.logger.info(
+                f"Reached save interval at episode {episode}. Saving checkpoint..."
+            )
             save_path = self.dump()
             if save_path:
                 self.logger.info(f"Checkpoint saved successfully to: {save_path}")
@@ -916,38 +1036,50 @@ class AgentTheseusGNN:
             total_episodes_completed: The total number of episodes that were run.
         """
         if not self.training_summary_data or total_episodes_completed == 0:
-            self.logger.info("No training data recorded or no episodes completed, skipping summary.")
+            self.logger.info(
+                "No training data recorded or no episodes completed, skipping summary."
+            )
             return
 
         self.logger.info("Generating Training Summary Table...")
         df = pd.DataFrame(self.training_summary_data)
 
         # Define blocks (e.g., 10% of total completed episodes)
-        block_size = max(1, total_episodes_completed // 10) # Ensure block_size is at least 1
-        num_blocks = (total_episodes_completed + block_size - 1) // block_size # Ceiling division
+        block_size = max(
+            1, total_episodes_completed // 10
+        )  # Ensure block_size is at least 1
+        num_blocks = (
+            total_episodes_completed + block_size - 1
+        ) // block_size  # Ceiling division
 
         summary_rows = []
         for i in range(num_blocks):
             start_episode = i * block_size + 1
             end_episode = min((i + 1) * block_size, total_episodes_completed)
-            block_data = df[(df['Episode'] >= start_episode) & (df['Episode'] <= end_episode)]
+            block_data = df[
+                (df["Episode"] >= start_episode) & (df["Episode"] <= end_episode)
+            ]
 
             if block_data.empty:
                 continue
 
-            avg_reward_hero = block_data['Reward_Hero'].mean()
-            avg_reward_gun = block_data['Reward_Gun'].mean()
-            avg_time_alive = block_data['Time_Alive'].mean()
+            avg_reward_hero = block_data["Reward_Hero"].mean()
+            avg_reward_gun = block_data["Reward_Gun"].mean()
+            avg_time_alive = block_data["Time_Alive"].mean()
             episode_range = f"{start_episode}-{end_episode}"
-            summary_rows.append((
-                episode_range,
-                f"{avg_reward_hero:.3f}",
-                f"{avg_reward_gun:.3f}",
-                f"{avg_time_alive:.2f}"
-            ))
+            summary_rows.append(
+                (
+                    episode_range,
+                    f"{avg_reward_hero:.3f}",
+                    f"{avg_reward_gun:.3f}",
+                    f"{avg_time_alive:.2f}",
+                )
+            )
 
         # Create and print the table using rich
-        table = Table(title=f"Training Summary (Completed {total_episodes_completed} Episodes)")
+        table = Table(
+            title=f"Training Summary (Completed {total_episodes_completed} Episodes)"
+        )
         table.add_column("Episode Block", justify="center", style="cyan", no_wrap=True)
         table.add_column("Avg Hero Reward", justify="right", style="magenta")
         table.add_column("Avg Gun Reward", justify="right", style="green")
@@ -986,16 +1118,34 @@ class AgentTheseusGNN:
                 "gun_target": "gun_target_state.pth",
                 "hero_optim": "hero_optimizer.pth",
                 "gun_optim": "gun_optimizer.pth",
-                "config": f"{base_name}_config.yaml"
+                "config": f"{base_name}_config.yaml",
             }
 
-            torch.save(self.hero_policy_net.state_dict(), os.path.join(dpath, filenames["hero_policy"]))
-            torch.save(self.hero_target_net.state_dict(), os.path.join(dpath, filenames["hero_target"]))
-            torch.save(self.gun_policy_net.state_dict(), os.path.join(dpath, filenames["gun_policy"]))
-            torch.save(self.gun_target_net.state_dict(), os.path.join(dpath, filenames["gun_target"]))
+            torch.save(
+                self.hero_policy_net.state_dict(),
+                os.path.join(dpath, filenames["hero_policy"]),
+            )
+            torch.save(
+                self.hero_target_net.state_dict(),
+                os.path.join(dpath, filenames["hero_target"]),
+            )
+            torch.save(
+                self.gun_policy_net.state_dict(),
+                os.path.join(dpath, filenames["gun_policy"]),
+            )
+            torch.save(
+                self.gun_target_net.state_dict(),
+                os.path.join(dpath, filenames["gun_target"]),
+            )
 
-            torch.save(self.hero_optimizer.state_dict(), os.path.join(dpath, filenames["hero_optim"]))
-            torch.save(self.gun_optimizer.state_dict(), os.path.join(dpath, filenames["gun_optim"]))
+            torch.save(
+                self.hero_optimizer.state_dict(),
+                os.path.join(dpath, filenames["hero_optim"]),
+            )
+            torch.save(
+                self.gun_optimizer.state_dict(),
+                os.path.join(dpath, filenames["gun_optim"]),
+            )
 
             state_info: Dict[str, Any] = {
                 "hero_policy_file": filenames["hero_policy"],
@@ -1008,7 +1158,7 @@ class AgentTheseusGNN:
                 "gun_policy_class": f"{type(self.gun_policy_net).__module__}.{type(self.gun_policy_net).__name__}",
                 "epsilon": self.epsilon,
                 "sync_steps_taken": self.sync_steps_taken,
-                "learning_rate": self.hero_optimizer.param_groups[0]['lr'],
+                "learning_rate": self.hero_optimizer.param_groups[0]["lr"],
                 "discount_factor": self.discount_factor,
                 "mini_batch_size": self.mini_batch_size,
                 "target_sync_rate": self.target_sync_rate,
@@ -1030,11 +1180,13 @@ class AgentTheseusGNN:
             return dpath
 
         except Exception as e:
-            self.logger.error(f"Failed to dump agent state to {dpath}: {e}", exc_info=True)
+            self.logger.error(
+                f"Failed to dump agent state to {dpath}: {e}", exc_info=True
+            )
             return None
 
     @classmethod
-    def load(cls, load_path: Union[str, os.PathLike]) -> Optional[Self]:
+    def load(cls, load_path: Union[str, os.PathLike]) -> Self | None:
         """
         Loads agent state from a specified checkpoint directory.
 
@@ -1055,32 +1207,39 @@ class AgentTheseusGNN:
             logger.error(f"Load path is not a valid directory: {load_path_str}")
             return None
 
-        yaml_files = [f for f in os.listdir(load_path_str) if f.endswith('_config.yaml')]
+        yaml_files = [
+            f for f in os.listdir(load_path_str) if f.endswith("_config.yaml")
+        ]
         if not yaml_files:
             logger.error(f"No '_config.yaml' file found in: {load_path_str}")
             return None
         if len(yaml_files) > 1:
-             logger.warning(f"Multiple config files found, using the first one: {yaml_files[0]}")
+            logger.warning(
+                f"Multiple config files found, using the first one: {yaml_files[0]}"
+            )
         yaml_path: str = os.path.join(load_path_str, yaml_files[0])
 
         try:
             with open(yaml_path, "r") as f:
                 state_info: Dict[str, Any] = yaml.safe_load(f)
         except Exception as e:
-            logger.error(f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True)
+            logger.error(
+                f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True
+            )
             return None
 
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Loading models onto device: {device}")
 
         try:
+
             def get_class(class_path: str) -> Type:
-                module_path, class_name = class_path.rsplit('.', 1)
+                module_path, class_name = class_path.rsplit(".", 1)
                 module = importlib.import_module(module_path)
                 return getattr(module, class_name)
 
-            HeroPolicyClass: Type[HeroGNN] = get_class(state_info['hero_policy_class'])
-            GunPolicyClass: Type[GunGNN] = get_class(state_info['gun_policy_class'])
+            HeroPolicyClass: Type[HeroGNN] = get_class(state_info["hero_policy_class"])
+            GunPolicyClass: Type[GunGNN] = get_class(state_info["gun_policy_class"])
 
             # TODO: Add network argument loading from state_info if constructors require them
             hero_policy_net = HeroPolicyClass()
@@ -1099,23 +1258,39 @@ class AgentTheseusGNN:
             gun_target_net.load_state_dict(torch.load(gt_path, map_location=device))
             logger.info("Network state dicts loaded successfully.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
-            logger.error(f"Error reconstructing or loading network models: {e}", exc_info=True)
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.error(
+                f"Error reconstructing or loading network models: {e}", exc_info=True
+            )
             return None
 
         try:
             learning_rate: float = state_info.get("learning_rate", 1e-4)
-            OptimizerClass: Type[optim.Optimizer] = get_class(state_info.get('optimizer_class', 'torch.optim.AdamW'))
-            LossFnClass: Type[nn.Module] = get_class(state_info.get('loss_fn_class', 'torch.nn.MSELoss'))
+            OptimizerClass: Type[optim.Optimizer] = get_class(
+                state_info.get("optimizer_class", "torch.optim.AdamW")
+            )
+            LossFnClass: Type[nn.Module] = get_class(
+                state_info.get("loss_fn_class", "torch.nn.MSELoss")
+            )
 
             # Networks must be moved to device *before* optimizer instantiation
             hero_policy_net.to(device)
             gun_policy_net.to(device)
-            hero_target_net.to(device) # Target nets also need to be on device
+            hero_target_net.to(device)  # Target nets also need to be on device
             gun_target_net.to(device)
 
-            hero_optimizer = OptimizerClass(hero_policy_net.parameters(), lr=learning_rate)
-            gun_optimizer = OptimizerClass(gun_policy_net.parameters(), lr=learning_rate)
+            hero_optimizer = OptimizerClass(
+                hero_policy_net.parameters(), lr=learning_rate
+            )
+            gun_optimizer = OptimizerClass(
+                gun_policy_net.parameters(), lr=learning_rate
+            )
 
             ho_path = os.path.join(load_path_str, state_info["hero_optim_file"])
             go_path = os.path.join(load_path_str, state_info["gun_optim_file"])
@@ -1123,63 +1298,80 @@ class AgentTheseusGNN:
                 hero_optimizer.load_state_dict(torch.load(ho_path, map_location=device))
                 logger.info("Hero optimizer state loaded.")
             else:
-                logger.warning(f"Hero optimizer state file not found: {ho_path}. Initializing fresh.")
+                logger.warning(
+                    f"Hero optimizer state file not found: {ho_path}. Initializing fresh."
+                )
             if os.path.exists(go_path):
                 gun_optimizer.load_state_dict(torch.load(go_path, map_location=device))
                 logger.info("Gun optimizer state loaded.")
             else:
-                logger.warning(f"Gun optimizer state file not found: {go_path}. Initializing fresh.")
+                logger.warning(
+                    f"Gun optimizer state file not found: {go_path}. Initializing fresh."
+                )
 
             logger.info("Optimizers and Loss function reconstructed.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
-            logger.error(f"Error reconstructing or loading optimizers/loss: {e}", exc_info=True)
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.error(
+                f"Error reconstructing or loading optimizers/loss: {e}", exc_info=True
+            )
             return None
 
         try:
-             env = Environment() # Assuming default constructor
+            env = Environment()  # Assuming default constructor
         except Exception as e:
-             logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
-             return None
+            logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
+            return None
 
         try:
-             agent = cls(
-                 hero_policy_net=hero_policy_net,
-                 hero_target_net=hero_target_net,
-                 gun_policy_net=gun_policy_net,
-                 gun_target_net=gun_target_net,
-                 env=env,
-                 loss_fn_class=LossFnClass,
-                 optimizer_class=OptimizerClass,
-                 learning_rate=learning_rate, # Loaded LR used for optimizers
-                 discount_factor=state_info.get('discount_factor', 0.99),
-                 epsilon_init=state_info.get('epsilon', 0.05), # Use saved epsilon
-                 epsilon_decay=state_info.get('epsilon_decay', 0.9995),
-                 epsilon_min=state_info.get('epsilon_min', 0.05),
-                 mini_batch_size=state_info.get('mini_batch_size', 64),
-                 target_sync_rate=state_info.get('target_sync_rate', 500),
-                 replay_memory_size=state_info.get('replay_memory_size', c.REPLAY_MEMORY_SIZE),
-                 log_window_size=state_info.get('log_window_size', LOGGING_WINDOW),
-                 save_interval=state_info.get('save_interval', SAVE_INTERVAL),
-             )
+            agent = cls(
+                hero_policy_net=hero_policy_net,
+                hero_target_net=hero_target_net,
+                gun_policy_net=gun_policy_net,
+                gun_target_net=gun_target_net,
+                env=env,
+                loss_fn_class=LossFnClass,
+                optimizer_class=OptimizerClass,
+                learning_rate=learning_rate,  # Loaded LR used for optimizers
+                discount_factor=state_info.get("discount_factor", 0.99),
+                epsilon_init=state_info.get("epsilon", 0.05),  # Use saved epsilon
+                epsilon_decay=state_info.get("epsilon_decay", 0.9995),
+                epsilon_min=state_info.get("epsilon_min", 0.05),
+                mini_batch_size=state_info.get("mini_batch_size", 64),
+                target_sync_rate=state_info.get("target_sync_rate", 500),
+                replay_memory_size=state_info.get(
+                    "replay_memory_size", c.REPLAY_MEMORY_SIZE
+                ),
+                log_window_size=state_info.get("log_window_size", LOGGING_WINDOW),
+                save_interval=state_info.get("save_interval", SAVE_INTERVAL),
+            )
 
-             # Restore specific state variables
-             agent.hero_optimizer = hero_optimizer
-             agent.gun_optimizer = gun_optimizer
-             agent.epsilon = state_info.get('epsilon', agent.epsilon_min) # Ensure current epsilon is loaded
-             agent.sync_steps_taken = state_info.get('sync_steps_taken', 0)
-             agent.total_reward_hero = state_info.get('total_reward_hero', 0.0)
-             agent.total_reward_gun = state_info.get('total_reward_gun', 0.0)
+            # Restore specific state variables
+            agent.hero_optimizer = hero_optimizer
+            agent.gun_optimizer = gun_optimizer
+            agent.epsilon = state_info.get(
+                "epsilon", agent.epsilon_min
+            )  # Ensure current epsilon is loaded
+            agent.sync_steps_taken = state_info.get("sync_steps_taken", 0)
+            agent.total_reward_hero = state_info.get("total_reward_hero", 0.0)
+            agent.total_reward_gun = state_info.get("total_reward_gun", 0.0)
 
-             # Ensure target networks are in eval mode after loading
-             agent.hero_target_net.eval()
-             agent.gun_target_net.eval()
+            # Ensure target networks are in eval mode after loading
+            agent.hero_target_net.eval()
+            agent.gun_target_net.eval()
 
-             logger.info(f"Agent loaded successfully from {load_path_str}")
-             return agent
+            logger.info(f"Agent loaded successfully from {load_path_str}")
+            return agent
 
         except Exception as e:
             logger.error(
-                f"Error instantiating AgentTheseusGNN during final load step: {e}", exc_info=True
+                f"Error instantiating AgentTheseusGNN during final load step: {e}",
+                exc_info=True,
             )
             return None

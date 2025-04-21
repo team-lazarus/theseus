@@ -2,6 +2,7 @@ import logging
 import torch
 import os
 from rich.logging import RichHandler
+from argparse import ArgumentParser
 
 # Adjust imports
 from theseus.agent_gnn import AgentTheseusGNN  # Import the new agent
@@ -19,10 +20,28 @@ DISCOUNT_FACTOR = 0.99
 # ... etc ...
 
 
-def train():
+def get_parser() -> ArgumentParser:
+    parser = ArgumentParser(prog="AgentTheseus", description="")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-t", "--train", action="store_true")
+    group.add_argument("-p", "--play", action="store_true")
+    parser.add_argument("-e", "--episodes", type=int)
+    parser.add_argument("--path")
+
+    return parser
+
+
+def train(path: str = "", episodes: int = 9999) -> None:
     """Initializes and trains the combined AgentTheseusGNN."""
     train_logger = logging.getLogger("train_loop")
     train_logger.info("Initializing environment and combined GNN agent...")
+
+    if not path == "":
+        agent = AgentTheseusGNN.load(path)
+        if not agent == None:
+            agent.train(episodes)
+
+        return
 
     env = Environment()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -58,7 +77,11 @@ def train():
         )
         return
 
-    agent.train(9999)
+    agent.train(episodes)
+
+
+def play(path: str):
+    pass
 
 
 # --- Main Execution ---
@@ -77,8 +100,13 @@ if __name__ == "__main__":
         "[bold green] Starting Theseus GNN Training [/]", extra={"markup": True}
     )
 
+    args = get_parser().parse_args()
+
     try:
-        train()
+        if args.train:
+            train(args.path, args.episodes)
+        elif args.play:
+            play(args.path)
     except KeyboardInterrupt:
         main_logger.warning("Training interrupted by user.")
     except Exception as main_e:
@@ -89,4 +117,3 @@ if __name__ == "__main__":
         main_logger.info(
             "[bold red] Training finished or interrupted. [/]", extra={"markup": True}
         )
-        # Add cleanup if needed
