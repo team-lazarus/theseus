@@ -35,7 +35,7 @@ PPO_LOG_WINDOW = 50  # Episodes for rolling average metrics
 PPO_SAVE_INTERVAL = 200  # Save checkpoint every N episodes
 NUM_TRAINING_EPISODES = 50000  # Total episodes to train for
 
-SAVED_MODEL = "model_saves_ppo/theseus_ppo_20250414_231934"
+SAVED_MODEL="model_saves_ppo/theseus_ppo_20250422_224425/ "
 
 
 def train_ppo():
@@ -51,7 +51,7 @@ def train_ppo():
     # --- Instantiate Actor and Critic Networks ---
     # CRITICAL ASSUMPTION: HeroGNN/GunGNN can output a single value when out_channels=1
     # If not, you need dedicated Critic GNN classes.
-    # agent = AgentTheseusPPO.load(SAVED_MODEL)
+    agent = AgentTheseusPPO.load(SAVED_MODEL)
     if agent == None:
         try:
             hero_actor = HeroGNN(
