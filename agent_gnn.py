@@ -10,36 +10,25 @@ from collections import deque
 from datetime import datetime
 from itertools import count
 from typing import List, Tuple, Optional, Type, Self, Deque, Dict, Any, Union
+from torch import nn, optim
+from torch_geometric.data import Batch, HeteroData
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+    TaskID,
+)
+from rich.table import Table
+from rich.console import Console
 
-# Assuming necessary imports exist and are correctly handled
-try:
-    from torch import nn, optim
-    from torch_geometric.data import Batch, HeteroData
-    from rich.progress import (
-        Progress,
-        BarColumn,
-        TextColumn,
-        TimeRemainingColumn,
-        MofNCompleteColumn,
-        TaskID,
-    )
-    from rich.table import Table
-    from rich.console import Console
+# Assuming these local imports exist and are correct
+from theseus.utils import State, ExperienceReplayMemory
+from theseus.utils.network import Environment
+import theseus.constants as c
+from theseus.models.GraphDQN.ActionGNN import HeroGNN, GunGNN
 
-    # Assuming these local imports exist and are correct
-    from theseus.utils import State, ExperienceReplayMemory
-    from theseus.utils.network import Environment
-    import theseus.constants as c
-    from theseus.models.GraphDQN.ActionGNN import HeroGNN, GunGNN
-
-except ImportError as e:
-    logging.basicConfig(level=logging.ERROR)
-    logger = logging.getLogger(__name__)
-    logger.error(
-        f"Failed to import necessary libraries: {e}. Please ensure all dependencies are installed."
-    )
-    # Exit or raise exception if critical imports fail
-    raise ImportError(f"Critical import failed: {e}") from e
 
 
 HERO_ACTION_SPACE_SIZE: int = 9
@@ -700,108 +689,79 @@ class AgentTheseusGNN:
 
     def _optimize_step(self, mini_batch: List[Tuple]) -> None:
         """
-        Performs a single optimization step using a mini-batch.
-
-        Preprocesses states and next states, converts data to tensors,
-        calculates losses for both hero and gun networks, and applies gradients.
-
-        Args:
-            mini_batch: A list of experience tuples from the replay memory.
+        Performs optimization using a mini-batch, handling non-terminal states correctly.
         """
         try:
-            states: Tuple[State, ...]
-            move_actions: Tuple[int, ...]
-            shoot_actions: Tuple[int, ...]
-            next_states: Tuple[Optional[State], ...]
-            hero_rewards: Tuple[float, ...]
-            gun_rewards: Tuple[float, ...]
-            terminations: Tuple[bool, ...]
-            (
-                states,
-                move_actions,
-                shoot_actions,
-                next_states,
-                hero_rewards,
-                gun_rewards,
-                terminations,
-            ) = zip(*mini_batch)
+            states, move_actions, shoot_actions, next_states, hero_rewards, gun_rewards, terminations = zip(*mini_batch)
         except ValueError as e:
-            self.logger.error(
-                f"Error unpacking minibatch, likely incorrect format: {e}"
-            )
+            self.logger.error(f"Error unpacking minibatch: {e}")
             return
 
+        # --- Preprocess current states ---
         try:
+            # Preprocess ALL current states
             h_graph_s, g_graph_s = self._preprocess_batch(
-                states, self.hero_policy_net, self.gun_policy_net, "policy"
+                states, self.hero_policy_net, self.gun_policy_net, "policy", terminations=None
             )
-            h_graph_ns, g_graph_ns = self._preprocess_batch(
-                next_states, self.hero_target_net, self.gun_target_net, "target"
-            )
-
             if h_graph_s is None or g_graph_s is None:
-                self.logger.warning(
-                    "Skipping optimization step: State preprocessing resulted in empty batches."
-                )
+                self.logger.warning("Skipping opt step: Current state preprocessing failed.")
                 return
-            # Note: h_graph_ns/g_graph_ns can validly be None if all next states were terminal or failed processing
-
-        except ValueError:
-            self.logger.warning(
-                "Skipping optimization step due to preprocessing failure leading to empty batch."
-            )
-            return
-        except Exception as e:
-            self.logger.error(
-                f"Unexpected error during batch preprocessing: {e}", exc_info=True
-            )
+        except Exception as e: # Catch potential errors from Batching
+            self.logger.error(f"Error preprocessing current states: {e}", exc_info=True)
             return
 
+        # --- Preprocess ONLY non-terminal next states ---
         try:
-            move_actions_t: torch.Tensor = torch.tensor(
-                move_actions, dtype=torch.long, device=self.device
+            # Pass terminations to filter next_states
+            h_graph_ns_nonterm, g_graph_ns_nonterm = self._preprocess_batch(
+                next_states, self.hero_target_net, self.gun_target_net, "target", terminations=terminations
             )
-            shoot_actions_t: torch.Tensor = torch.tensor(
-                shoot_actions, dtype=torch.long, device=self.device
-            )
-            hero_rewards_t: torch.Tensor = torch.tensor(
-                hero_rewards, dtype=torch.float, device=self.device
-            )
-            gun_rewards_t: torch.Tensor = torch.tensor(
-                gun_rewards, dtype=torch.float, device=self.device
-            )
-            non_terminal_mask: torch.Tensor = torch.tensor(
-                [not t for t in terminations], dtype=torch.bool, device=self.device
-            )
+            # These batches (if not None) now ONLY contain graphs for non-terminal next states
+        except Exception as e:
+             self.logger.error(f"Error preprocessing next states: {e}", exc_info=True)
+             return
+
+
+        # --- Convert base components to tensors ---
+        try:
+            move_actions_t = torch.tensor(move_actions, dtype=torch.long, device=self.device)
+            shoot_actions_t = torch.tensor(shoot_actions, dtype=torch.long, device=self.device)
+            hero_rewards_t = torch.tensor(hero_rewards, dtype=torch.float, device=self.device)
+            gun_rewards_t = torch.tensor(gun_rewards, dtype=torch.float, device=self.device)
+            # Non-terminal mask is crucial for indexing
+            non_terminal_mask = torch.tensor([not t for t in terminations], dtype=torch.bool, device=self.device)
         except (TypeError, ValueError) as e:
-            self.logger.error(
-                f"Error converting batch data to tensors: {e}", exc_info=True
-            )
+            self.logger.error(f"Error converting batch data to tensors: {e}")
             return
 
+        # --- Optimize Hero Network ---
         self._calculate_and_apply_loss(
             policy_net=self.hero_policy_net,
             target_net=self.hero_target_net,
             optimizer=self.hero_optimizer,
-            batch_states=h_graph_s,
+            batch_states=h_graph_s, # All current states
             actions_t=move_actions_t,
-            batch_next_states=h_graph_ns,
+            # Pass ONLY the batch of non-terminal next states
+            batch_next_states_nonterm=h_graph_ns_nonterm,
             rewards_t=hero_rewards_t,
-            non_terminal_mask=non_terminal_mask,
+            non_terminal_mask=non_terminal_mask, # Mask for original batch size
             loss_deque=self.hero_loss_deque,
         )
 
+        # --- Optimize Gun Network ---
         self._calculate_and_apply_loss(
             policy_net=self.gun_policy_net,
             target_net=self.gun_target_net,
             optimizer=self.gun_optimizer,
-            batch_states=g_graph_s,
+            batch_states=g_graph_s, # All current states
             actions_t=shoot_actions_t,
-            batch_next_states=g_graph_ns,
+             # Pass ONLY the batch of non-terminal next states
+            batch_next_states_nonterm=g_graph_ns_nonterm,
             rewards_t=gun_rewards_t,
-            non_terminal_mask=non_terminal_mask,
+            non_terminal_mask=non_terminal_mask, # Mask for original batch size
             loss_deque=self.gun_loss_deque,
         )
+
 
     def _preprocess_batch(
         self,
@@ -809,169 +769,135 @@ class AgentTheseusGNN:
         net1: nn.Module,
         net2: nn.Module,
         net_type: str,
+        terminations: Optional[Tuple[bool, ...]] = None # Add terminations flag
     ) -> Tuple[Optional[Batch], Optional[Batch]]:
         """
-        Preprocesses a batch of states using two networks.
-
-        Iterates through states, calls preprocess_state on each network,
-        and creates PyG Batch objects. Handles potential errors and None states.
-
-        Args:
-            states: A tuple of states (can include None, e.g., for next_states).
-            net1: The first network for preprocessing.
-            net2: The second network for preprocessing.
-            net_type: String identifier ('policy' or 'target') for logging.
-
-        Returns:
-            A tuple containing two Optional[Batch] objects. Returns (None, None)
-            if preprocessing fails for all valid states.
+        Preprocesses states, optionally filtering for non-terminal states.
         """
-        graphs1_list: List[Union[HeteroData, Batch]] = []
-        graphs2_list: List[Union[HeteroData, Batch]] = []
-        valid_indices: List[int] = []
+        graphs1_list = []
+        graphs2_list = []
+        # We don't necessarily need valid_indices if we filter lists directly
 
         for i, state in enumerate(states):
+            # --- Filtering logic for next_states ---
+            is_terminal = terminations[i] if terminations is not None else False
+            # If processing next_states (terminations provided) AND state is terminal, SKIP
+            if terminations is not None and is_terminal:
+                continue
+            # If state is None (can happen in next_states if env returns None after terminal), SKIP
             if state is None:
                 continue
+            # --- End Filtering ---
 
             try:
                 graph1 = net1.preprocess_state(state)
                 graph2 = net2.preprocess_state(state)
+                # Append only if BOTH preprocessing steps succeed for this state
                 if graph1 is not None and graph2 is not None:
                     graphs1_list.append(graph1)
                     graphs2_list.append(graph2)
-                    valid_indices.append(i)
-                else:
-                    self.logger.debug(
-                        f"Preprocessing returned None for state index {i} using {net_type} networks."
-                    )
+                # else: Optionally log preprocess failure for individual state
             except Exception as e:
                 self.logger.warning(
-                    f"Error preprocessing state index {i} in batch using {net_type} networks: {e}",
-                    exc_info=False,
+                    f"Error preprocessing state index {i} ({net_type}): {e}", exc_info=False
                 )
 
+        # If the filtered list is empty, return None for the batches
         if not graphs1_list:
-            self.logger.warning(
-                f"Preprocessing yielded no valid graphs for the {net_type} batch."
+            self.logger.debug(
+                f"Preprocessing yielded no valid graphs for the {net_type} batch "
+                f"{'(filtered)' if terminations is not None else ''}."
             )
             return None, None
 
+        # Create batches from the (potentially filtered) lists
         try:
-            batch1: Batch = Batch.from_data_list(graphs1_list).to(self.device)
-            batch2: Batch = Batch.from_data_list(graphs2_list).to(self.device)
-            # Note: valid_indices might be useful here if alignment needs checking
-            # in the loss calculation, but often the non_terminal_mask suffices.
+            batch1 = Batch.from_data_list(graphs1_list).to(self.device)
+            batch2 = Batch.from_data_list(graphs2_list).to(self.device)
             return batch1, batch2
         except Exception as e:
             self.logger.error(
-                f"Error creating Batch object from data list for {net_type} nets: {e}",
-                exc_info=True,
+                f"Error creating Batch for {net_type} nets: {e}", exc_info=True
             )
             return None, None
+
 
     def _calculate_and_apply_loss(
         self,
         policy_net: nn.Module,
         target_net: nn.Module,
         optimizer: optim.Optimizer,
-        batch_states: Batch,
-        actions_t: torch.Tensor,
-        batch_next_states: Optional[Batch],
-        rewards_t: torch.Tensor,
+        batch_states: Batch, # Batch of ALL current states
+        actions_t: torch.Tensor, # Actions for ALL original states
+        # Batch containing ONLY non-terminal next states
+        batch_next_states_nonterm: Optional[Batch],
+        rewards_t: torch.Tensor, # Rewards for ALL original states
+        # Mask indicating non-terminal states in the original batch
         non_terminal_mask: torch.Tensor,
         loss_deque: Deque[float],
     ) -> None:
-        """
-        Calculates DQN loss, performs backpropagation, and optimizer step.
-
-        Uses the Double DQN approach implicitly by getting max action from
-        the policy network and evaluating it with the target network (though
-        simplified here to max Q from target). Handles non-terminal state masking.
-
-        Args:
-            policy_net: The policy network to train.
-            target_net: The target network for calculating target Q-values.
-            optimizer: The optimizer for the policy network.
-            batch_states: Batch of current states (preprocessed).
-            actions_t: Tensor of actions taken in the batch.
-            batch_next_states: Batch of next states (preprocessed), can be None.
-            rewards_t: Tensor of rewards received.
-            non_terminal_mask: Boolean tensor indicating non-terminal next states.
-            loss_deque: Deque to store the calculated loss value.
-        """
+        """Calculates DQN loss and performs optimization, handling non-terminal states."""
         try:
+            # --- Current Q Calculation (uses all states) ---
             policy_net.train()
-            current_q_all: torch.Tensor = policy_net(batch_states)
-            current_q: torch.Tensor = current_q_all.gather(
+            current_q_all = policy_net(batch_states)
+            current_q = current_q_all.gather(
                 dim=1, index=actions_t.unsqueeze(dim=1)
             ).squeeze(dim=1)
         except Exception as e:
-            self.logger.error(
-                f"Error getting current Q-values from {type(policy_net).__name__}: {e}",
-                exc_info=True,
-            )
+            self.logger.error(f"Error getting current Q-values: {e}", exc_info=True)
             return
 
-        next_q_values: torch.Tensor = torch.zeros_like(rewards_t, device=self.device)
-        if (
-            non_terminal_mask.any()
-            and batch_next_states is not None
-            and batch_next_states.num_graphs > 0
-        ):
-            # Ensure batch_next_states corresponds only to non-terminal states if filtered during preprocessing
-            # Or handle potential misalignment if not filtered strictly.
-            num_non_terminal = non_terminal_mask.sum().item()
-            if batch_next_states.num_graphs != num_non_terminal:
-                self.logger.warning(
-                    f"Potential mismatch: {num_non_terminal} non-terminal states but {batch_next_states.num_graphs} graphs in next_state batch for {type(target_net).__name__}. Ensure preprocessing filters correctly or loss calculation handles alignment."
-                )
-                # Attempting to proceed might lead to errors or incorrect targets.
-                # Consider returning here or implementing robust alignment based on valid_indices from preprocessing.
-                # For simplicity, we proceed assuming alignment or that target_net handles it.
+        # --- Target Q Calculation ---
+        # Initialize next_q_values for the whole original batch size
+        next_q_values = torch.zeros_like(rewards_t, device=self.device)
 
+        # Calculate target Q ONLY for non-terminal states
+        # Check if there are any non-terminal states AND if the corresponding batch exists
+        if non_terminal_mask.any() and batch_next_states_nonterm is not None:
             target_net.eval()
             with torch.no_grad():
                 try:
-                    target_next_q_all: torch.Tensor = target_net(batch_next_states)
-                    max_target_next_q: torch.Tensor = target_next_q_all.max(dim=1)[0]
-                    # Fill only non-terminal entries. Assumes max_target_next_q aligns with the non-terminal subset.
-                    if (
-                        len(max_target_next_q) == num_non_terminal
-                    ):  # Basic alignment check
+                    # Target net processes ONLY the non-terminal graphs
+                    target_next_q_all = target_net(batch_next_states_nonterm)
+                    # Get max Q value for these non-terminal states
+                    max_target_next_q = target_next_q_all.max(dim=1)[0]
+
+                    # Use the mask to place these values into the correct indices
+                    # The size of max_target_next_q should match the number of True values in non_terminal_mask
+                    if len(max_target_next_q) == non_terminal_mask.sum():
                         next_q_values[non_terminal_mask] = max_target_next_q
                     else:
-                        # Log the mismatch if sizes don't match after the check above
+                        # This case should be less likely now with filtering in _preprocess_batch
                         self.logger.error(
-                            f"Alignment error: Cannot assign {len(max_target_next_q)} target Q-values to {num_non_terminal} non-terminal states for {type(target_net).__name__}. Check preprocessing and batch alignment."
+                            f"CRITICAL ALIGNMENT ERROR for {type(target_net).__name__}: "
+                            f"Target net output size {len(max_target_next_q)} does not match "
+                            f"non-terminal mask count {non_terminal_mask.sum()}. Check filtering logic."
                         )
-                        # Target Q will remain 0 for these states if assignment fails
+                        # Cannot safely calculate target Q, skipping loss calculation might be best
+                        return
 
                 except Exception as e:
-                    self.logger.error(
-                        f"Error getting target Q-values from {type(target_net).__name__}: {e}",
-                        exc_info=True,
-                    )
+                    self.logger.error(f"Error getting target Q-values: {e}", exc_info=True)
+                    # Proceed with zeros for next_q_values if target calc fails
 
-        target_q: torch.Tensor = rewards_t + (self.discount_factor * next_q_values)
-        target_q = target_q.detach()
+        # Calculate final target (zeros for terminal states implicitly handled)
+        target_q = rewards_t + (self.discount_factor * next_q_values)
+        target_q = target_q.detach() # Detach target Q values
 
+        # --- Loss Calculation and Optimization ---
         try:
-            loss: torch.Tensor = self.loss_fn(current_q, target_q)
+            loss = self.loss_fn(current_q, target_q)
             optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_value_(policy_net.parameters(), clip_value=1.0)
             optimizer.step()
 
-            loss_value: float = loss.item()
+            loss_value = loss.item()
             loss_deque.append(loss_value)
             self.logger.debug(f"Loss ({type(policy_net).__name__}): {loss_value:.4f}")
-
         except Exception as e:
-            self.logger.error(
-                f"Error during loss calculation or optimization for {type(policy_net).__name__}: {e}",
-                exc_info=True,
-            )
+            self.logger.error(f"Error during loss/optimization: {e}", exc_info=True)
 
     def _sync_target_networks_if_needed(self) -> None:
         """

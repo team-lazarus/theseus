@@ -26,32 +26,40 @@ try:
     )
     from rich.table import Table
     from rich.console import Console
+
     # Assuming these local imports exist and are correct
-    from theseus.utils import State # Assuming State is defined here
+    from theseus.utils import State  # Assuming State is defined here
+
     # NOTE: ExperienceReplayMemory is not used in PPO's standard form
     # from theseus.utils import ExperienceReplayMemory
     from theseus.utils.network import Environment
     import theseus.constants as c
+
     # --- IMPORTANT: Assuming these GNNs can act as Actors/Critics ---
     # You might need distinct classes or modifications
     from theseus.models.GraphDQN.ActionGNN import HeroGNN as HeroActorGNN
-    from theseus.models.GraphDQN.ActionGNN import HeroGNN as HeroCriticGNN # Placeholder
+    from theseus.models.GraphDQN.ActionGNN import (
+        HeroGNN as HeroCriticGNN,
+    )  # Placeholder
     from theseus.models.GraphDQN.ActionGNN import GunGNN as GunActorGNN
-    from theseus.models.GraphDQN.ActionGNN import GunGNN as GunCriticGNN # Placeholder
+    from theseus.models.GraphDQN.ActionGNN import GunGNN as GunCriticGNN  # Placeholder
+
     # --------------------------------------------------------------
 
 except ImportError as e:
     logging.basicConfig(level=logging.ERROR)
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to import necessary libraries: {e}. Please ensure all dependencies are installed.")
+    logger.error(
+        f"Failed to import necessary libraries: {e}. Please ensure all dependencies are installed."
+    )
     raise ImportError(f"Critical import failed: {e}") from e
 
 # Define constants (can be moved to a config file)
 HERO_ACTION_SPACE_SIZE: int = 9
 GUN_ACTION_SPACE_SIZE: int = 8
 LOGGING_WINDOW: int = 50
-SAVE_INTERVAL: int = 5 # Episodes
-DEFAULT_HORIZON: int = 2048 # Steps per rollout collection
+SAVE_INTERVAL: int = 5  # Episodes
+DEFAULT_HORIZON: int = 2048  # Steps per rollout collection
 DEFAULT_EPOCHS_PER_UPDATE: int = 10
 DEFAULT_MINI_BATCH_SIZE_PPO: int = 64
 DEFAULT_CLIP_EPSILON: float = 0.2
@@ -62,14 +70,22 @@ DEFAULT_LEARNING_RATE_PPO: float = 3e-4
 DEFAULT_DISCOUNT_FACTOR_PPO: float = 0.99
 
 # Structure to hold trajectory data
-TrajectoryStep = namedtuple("TrajectoryStep", [
-    'state_graph_hero', 'state_graph_gun', # Preprocessed graphs
-    'move_action', 'shoot_action',
-    'move_log_prob', 'shoot_log_prob',
-    'hero_value', 'gun_value',
-    'hero_reward', 'gun_reward',
-    'terminated'
-])
+TrajectoryStep = namedtuple(
+    "TrajectoryStep",
+    [
+        "state_graph_hero",
+        "state_graph_gun",  # Preprocessed graphs
+        "move_action",
+        "shoot_action",
+        "move_log_prob",
+        "shoot_log_prob",
+        "hero_value",
+        "gun_value",
+        "hero_reward",
+        "gun_reward",
+        "terminated",
+    ],
+)
 
 
 class AgentTheseusPPO:
@@ -105,6 +121,7 @@ class AgentTheseusPPO:
         total_steps: Counter for steps within the current rollout horizon.
         ... (other PPO specific attributes)
     """
+
     def __init__(
         self,
         hero_actor_net: HeroActorGNN,
@@ -155,7 +172,9 @@ class AgentTheseusPPO:
         # Combine params if sharing backbones, otherwise separate optimizers
         # Assuming separate networks for now
         self.hero_actor_optimizer: optim.Optimizer = optimizer_class(
-            self.hero_actor_net.parameters(), lr=learning_rate, eps=1e-5 # Adam typically uses eps
+            self.hero_actor_net.parameters(),
+            lr=learning_rate,
+            eps=1e-5,  # Adam typically uses eps
         )
         self.hero_critic_optimizer: optim.Optimizer = optimizer_class(
             self.hero_critic_net.parameters(), lr=learning_rate, eps=1e-5
@@ -171,41 +190,62 @@ class AgentTheseusPPO:
 
         # --- Data Collection ---
         self.trajectory_buffer: List[TrajectoryStep] = []
-        self.total_steps: int = 0 # Steps collected in the current rollout
+        self.total_steps: int = 0  # Steps collected in the current rollout
 
         # --- Metrics Tracking ---
         self.log_window_size: int = log_window_size
         self.save_interval: int = save_interval
-        self.episode_rewards_hero_deque: Deque[float] = deque(maxlen=self.log_window_size)
-        self.episode_rewards_gun_deque: Deque[float] = deque(maxlen=self.log_window_size)
+        self.episode_rewards_hero_deque: Deque[float] = deque(
+            maxlen=self.log_window_size
+        )
+        self.episode_rewards_gun_deque: Deque[float] = deque(
+            maxlen=self.log_window_size
+        )
         self.episode_time_alive_deque: Deque[int] = deque(maxlen=self.log_window_size)
         self.total_reward_hero: float = 0.0
         self.total_reward_gun: float = 0.0
         # PPO specific metrics
-        self.hero_actor_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
-        self.hero_critic_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
-        self.gun_actor_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
-        self.gun_critic_loss_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
-        self.entropy_hero_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
-        self.entropy_gun_deque: Deque[float] = deque(maxlen=self.log_window_size * epochs_per_update)
+        self.hero_actor_loss_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
+        self.hero_critic_loss_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
+        self.gun_actor_loss_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
+        self.gun_critic_loss_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
+        self.entropy_hero_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
+        self.entropy_gun_deque: Deque[float] = deque(
+            maxlen=self.log_window_size * epochs_per_update
+        )
 
-        self.training_summary_data: List[Dict[str, Union[int, float]]] = [] # For summary table
+        self.training_summary_data: List[Dict[str, Union[int, float]]] = (
+            []
+        )  # For summary table
         self.console = Console()
 
-        self.current_state: Optional[State] = None # Track current state across steps/episodes
-
+        self.current_state: Optional[State] = (
+            None  # Track current state across steps/episodes
+        )
 
     def _validate_network(self, network: nn.Module, name: str) -> None:
         """Checks if a network has the required 'preprocess_state' method."""
         if not hasattr(network, "preprocess_state") or not callable(
-            getattr(network, "preprocess_state", None) # Safer check
+            getattr(network, "preprocess_state", None)  # Safer check
         ):
             raise AttributeError(
                 f"{name} network must have a callable 'preprocess_state' method."
             )
         # Optional: Add checks for output shapes if possible/needed
 
-    def _update_metrics(self, ep_reward_hero: float, ep_reward_gun: float, time_alive: int) -> None:
+    def _update_metrics(
+        self, ep_reward_hero: float, ep_reward_gun: float, time_alive: int
+    ) -> None:
         """Updates rolling and cumulative reward metrics after an episode."""
         self.episode_rewards_hero_deque.append(ep_reward_hero)
         self.episode_rewards_gun_deque.append(ep_reward_gun)
@@ -215,16 +255,50 @@ class AgentTheseusPPO:
 
     def _log_episode_metrics(self, episode: int, steps: int) -> None:
         """Logs key performance metrics for the completed episode."""
-        avg_rew_hero = np.mean(self.episode_rewards_hero_deque) if self.episode_rewards_hero_deque else 0.0
-        avg_rew_gun = np.mean(self.episode_rewards_gun_deque) if self.episode_rewards_gun_deque else 0.0
-        avg_time_alive = np.mean(self.episode_time_alive_deque) if self.episode_time_alive_deque else 0.0
+        avg_rew_hero = (
+            np.mean(self.episode_rewards_hero_deque)
+            if self.episode_rewards_hero_deque
+            else 0.0
+        )
+        avg_rew_gun = (
+            np.mean(self.episode_rewards_gun_deque)
+            if self.episode_rewards_gun_deque
+            else 0.0
+        )
+        avg_time_alive = (
+            np.mean(self.episode_time_alive_deque)
+            if self.episode_time_alive_deque
+            else 0.0
+        )
 
-        avg_loss_actor_h = np.mean(self.hero_actor_loss_deque) if self.hero_actor_loss_deque else float("nan")
-        avg_loss_critic_h = np.mean(self.hero_critic_loss_deque) if self.hero_critic_loss_deque else float("nan")
-        avg_loss_actor_g = np.mean(self.gun_actor_loss_deque) if self.gun_actor_loss_deque else float("nan")
-        avg_loss_critic_g = np.mean(self.gun_critic_loss_deque) if self.gun_critic_loss_deque else float("nan")
-        avg_entropy_h = np.mean(self.entropy_hero_deque) if self.entropy_hero_deque else float("nan")
-        avg_entropy_g = np.mean(self.entropy_gun_deque) if self.entropy_gun_deque else float("nan")
+        avg_loss_actor_h = (
+            np.mean(self.hero_actor_loss_deque)
+            if self.hero_actor_loss_deque
+            else float("nan")
+        )
+        avg_loss_critic_h = (
+            np.mean(self.hero_critic_loss_deque)
+            if self.hero_critic_loss_deque
+            else float("nan")
+        )
+        avg_loss_actor_g = (
+            np.mean(self.gun_actor_loss_deque)
+            if self.gun_actor_loss_deque
+            else float("nan")
+        )
+        avg_loss_critic_g = (
+            np.mean(self.gun_critic_loss_deque)
+            if self.gun_critic_loss_deque
+            else float("nan")
+        )
+        avg_entropy_h = (
+            np.mean(self.entropy_hero_deque)
+            if self.entropy_hero_deque
+            else float("nan")
+        )
+        avg_entropy_g = (
+            np.mean(self.entropy_gun_deque) if self.entropy_gun_deque else float("nan")
+        )
 
         metrics_list = [
             f"TimeAlive={steps}",
@@ -233,9 +307,12 @@ class AgentTheseusPPO:
             f"AvgR_Gun={avg_rew_gun:.3f}",
             f"CumR_Hero={self.total_reward_hero:.2f}",
             f"CumR_Gun={self.total_reward_gun:.2f}",
-            f"ALoss_H={avg_loss_actor_h:.4f}", f"CLoss_H={avg_loss_critic_h:.4f}",
-            f"ALoss_G={avg_loss_actor_g:.4f}", f"CLoss_G={avg_loss_critic_g:.4f}",
-            f"Entropy_H={avg_entropy_h:.3f}", f"Entropy_G={avg_entropy_g:.3f}",
+            f"ALoss_H={avg_loss_actor_h:.4f}",
+            f"CLoss_H={avg_loss_critic_h:.4f}",
+            f"ALoss_G={avg_loss_actor_g:.4f}",
+            f"CLoss_G={avg_loss_critic_g:.4f}",
+            f"Entropy_H={avg_entropy_h:.3f}",
+            f"Entropy_G={avg_entropy_g:.3f}",
             f"RolloutProg={self.total_steps}/{self.horizon}",
         ]
         log_str = f"Ep {episode} Summary | " + " | ".join(metrics_list)
@@ -247,82 +324,114 @@ class AgentTheseusPPO:
             f"Starting PPO training on {self.device} for {num_episodes or 'infinite'} episodes..."
         )
         self.logger.info(f"Collect Horizon: {self.horizon} steps")
-        self.training_summary_data = [] # Reset summary data
+        self.training_summary_data = []  # Reset summary data
 
         # Reset environment state at the beginning of training
         self.current_state = self._initialize_episode()
         if self.current_state is None:
-             self.logger.critical("Initial environment reset failed. Stopping training.")
-             return
+            self.logger.critical("Initial environment reset failed. Stopping training.")
+            return
 
         progress_columns = [
-            TextColumn("[progress.description]{task.description}"), BarColumn(),
-            MofNCompleteColumn(), TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
             TimeRemainingColumn(),
         ]
         total_episodes_for_progress = num_episodes
         if num_episodes is None:
             progress_columns = [
-                TextColumn("[progress.description]{task.description}"), BarColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
                 TextColumn("Episode {task.completed}"),
             ]
             total_episodes_for_progress = None
-            self.logger.warning("Training infinitely. Progress bar will not show total or ETA.")
+            self.logger.warning(
+                "Training infinitely. Progress bar will not show total or ETA."
+            )
 
         with Progress(*progress_columns, transient=False) as progress:
             episode_task: TaskID = progress.add_task(
                 "[cyan]Training Episodes...", total=total_episodes_for_progress
             )
-            episode_iterator = range(num_episodes) if num_episodes is not None else count()
+            episode_iterator = (
+                range(num_episodes) if num_episodes is not None else count()
+            )
             completed_episodes = 0
 
             try:
                 for episode in episode_iterator:
-                    ep_reward_hero, ep_reward_gun, time_alive, terminated, truncated = self._run_episode_or_rollout(
-                        episode, progress, episode_task
+                    ep_reward_hero, ep_reward_gun, time_alive, terminated, truncated = (
+                        self._run_episode_or_rollout(episode, progress, episode_task)
                     )
 
                     # --- Logging and Metrics ---
-                    if terminated or truncated: # Only log full episode stats when an episode actually ends
+                    if (
+                        terminated or truncated
+                    ):  # Only log full episode stats when an episode actually ends
                         self._update_metrics(ep_reward_hero, ep_reward_gun, time_alive)
                         self._log_episode_metrics(episode, time_alive)
                         # Store data for final summary table
-                        self.training_summary_data.append({
-                            "Episode": episode + 1, "Reward_Hero": ep_reward_hero,
-                            "Reward_Gun": ep_reward_gun, "Time_Alive": time_alive,
-                        })
+                        self.training_summary_data.append(
+                            {
+                                "Episode": episode + 1,
+                                "Reward_Hero": ep_reward_hero,
+                                "Reward_Gun": ep_reward_gun,
+                                "Time_Alive": time_alive,
+                            }
+                        )
                         self._save_checkpoint_if_needed(episode)
                         progress.update(episode_task, advance=1)
                         completed_episodes += 1
 
                     # --- Learning Step Trigger ---
                     if self.total_steps >= self.horizon:
-                        self.logger.info(f"Horizon {self.horizon} reached. Starting PPO update.")
-                        self._update_policy() # Perform PPO update
+                        self.logger.info(
+                            f"Horizon {self.horizon} reached. Starting PPO update."
+                        )
+                        self._update_policy()  # Perform PPO update
                         # Update happens independent of episode boundaries
-                        progress.update(episode_task, description=f"[cyan]Ep. {episode} (Updating Policy...)")
-
+                        progress.update(
+                            episode_task,
+                            description=f"[cyan]Ep. {episode} (Updating Policy...)",
+                        )
 
             except RuntimeError as e:
-                self.logger.critical(f"Stopping training due to runtime error in episode {episode}: {e}", exc_info=True)
+                self.logger.critical(
+                    f"Stopping training due to runtime error in episode {episode}: {e}",
+                    exc_info=True,
+                )
             except KeyboardInterrupt:
-                 self.logger.warning("Training interrupted by user.")
+                self.logger.warning("Training interrupted by user.")
             except Exception as e:
-                self.logger.critical(f"Unexpected error during episode {episode}: {e}", exc_info=True)
+                self.logger.critical(
+                    f"Unexpected error during episode {episode}: {e}", exc_info=True
+                )
             finally:
                 progress.stop()
                 if num_episodes is not None:
-                    final_desc = "[green]Training Finished" if completed_episodes == num_episodes else "[yellow]Training Stopped Early"
-                    progress.update(episode_task, description=final_desc, completed=completed_episodes)
+                    final_desc = (
+                        "[green]Training Finished"
+                        if completed_episodes == num_episodes
+                        else "[yellow]Training Stopped Early"
+                    )
+                    progress.update(
+                        episode_task,
+                        description=final_desc,
+                        completed=completed_episodes,
+                    )
                     if completed_episodes > 0:
                         self._display_training_summary(completed_episodes)
                 else:
-                    progress.update(episode_task, description="[yellow]Training Stopped (Infinite Mode)")
+                    progress.update(
+                        episode_task,
+                        description="[yellow]Training Stopped (Infinite Mode)",
+                    )
                     if completed_episodes > 0:
                         self._display_training_summary(completed_episodes)
 
         self.logger.info("Training finished.")
-
 
     def _run_episode_or_rollout(
         self, episode_num: int, progress: Progress, task_id: TaskID
@@ -353,25 +462,41 @@ class AgentTheseusPPO:
 
         # Loop until horizon is met or episode ends
         for step_in_rollout in range(self.horizon - self.total_steps):
-            if self.current_state is None: # Should not happen if initialized correctly
-                 self.logger.error("Critical: current_state became None during rollout.")
-                 terminated = True # Force stop
-                 break
+            if self.current_state is None:  # Should not happen if initialized correctly
+                self.logger.error("Critical: current_state became None during rollout.")
+                terminated = True  # Force stop
+                break
 
             # --- Preprocess State for GNNs ---
             # This might be expensive, do it once per step
             try:
-                with torch.no_grad(): # No gradients needed for data collection forward passes
-                    graph_hero_actor = self.hero_actor_net.preprocess_state(self.current_state)
-                    graph_gun_actor = self.gun_actor_net.preprocess_state(self.current_state)
+                with (
+                    torch.no_grad()
+                ):  # No gradients needed for data collection forward passes
+                    graph_hero_actor = self.hero_actor_net.preprocess_state(
+                        self.current_state
+                    )
+                    graph_gun_actor = self.gun_actor_net.preprocess_state(
+                        self.current_state
+                    )
                     # Assume critics use the same preprocessing for simplicity
-                    graph_hero_critic = self.hero_critic_net.preprocess_state(self.current_state)
-                    graph_gun_critic = self.gun_critic_net.preprocess_state(self.current_state)
+                    graph_hero_critic = self.hero_critic_net.preprocess_state(
+                        self.current_state
+                    )
+                    graph_gun_critic = self.gun_critic_net.preprocess_state(
+                        self.current_state
+                    )
 
-                if graph_hero_actor is None or graph_gun_actor is None or \
-                   graph_hero_critic is None or graph_gun_critic is None:
-                    self.logger.warning(f"Preprocessing failed at step {episode_steps} in Ep {episode_num}. Ending episode.")
-                    terminated = True # Treat as failure
+                if (
+                    graph_hero_actor is None
+                    or graph_gun_actor is None
+                    or graph_hero_critic is None
+                    or graph_gun_critic is None
+                ):
+                    self.logger.warning(
+                        f"Preprocessing failed at step {episode_steps} in Ep {episode_num}. Ending episode."
+                    )
+                    terminated = True  # Treat as failure
                     break
 
                 # Move graphs to device once
@@ -381,21 +506,35 @@ class AgentTheseusPPO:
                 graph_gun_critic = graph_gun_critic.to(self.device)
 
             except Exception as e:
-                self.logger.error(f"Error preprocessing state in Ep {episode_num}, Step {episode_steps}: {e}", exc_info=True)
+                self.logger.error(
+                    f"Error preprocessing state in Ep {episode_num}, Step {episode_steps}: {e}",
+                    exc_info=True,
+                )
                 terminated = True
                 break
 
             # --- Select Actions and Get Values ---
             with torch.no_grad():
-                move_action, move_log_prob = self._sample_action(self.hero_actor_net, graph_hero_actor)
-                shoot_action, shoot_log_prob = self._sample_action(self.gun_actor_net, graph_gun_actor)
+                move_action, move_log_prob = self._sample_action(
+                    self.hero_actor_net, graph_hero_actor
+                )
+                shoot_action, shoot_log_prob = self._sample_action(
+                    self.gun_actor_net, graph_gun_actor
+                )
                 hero_value = self._get_value(self.hero_critic_net, graph_hero_critic)
                 gun_value = self._get_value(self.gun_critic_net, graph_gun_critic)
 
-            if move_action is None or shoot_action is None or hero_value is None or gun_value is None:
-                 self.logger.warning(f"Action sampling or value estimation failed in Ep {episode_num}. Ending episode.")
-                 terminated = True
-                 break
+            if (
+                move_action is None
+                or shoot_action is None
+                or hero_value is None
+                or gun_value is None
+            ):
+                self.logger.warning(
+                    f"Action sampling or value estimation failed in Ep {episode_num}. Ending episode."
+                )
+                terminated = True
+                break
 
             # --- Step Environment ---
             step_result: Tuple[Optional[State], float, float, bool, bool] = (
@@ -405,7 +544,7 @@ class AgentTheseusPPO:
 
             # --- Store Transition ---
             step_data = TrajectoryStep(
-                state_graph_hero=graph_hero_actor.cpu(), # Store graphs on CPU to save GPU memory
+                state_graph_hero=graph_hero_actor.cpu(),  # Store graphs on CPU to save GPU memory
                 state_graph_gun=graph_gun_actor.cpu(),
                 move_action=move_action,
                 shoot_action=shoot_action,
@@ -415,7 +554,7 @@ class AgentTheseusPPO:
                 gun_value=gun_value.cpu(),
                 hero_reward=reward_hero,
                 gun_reward=reward_gun,
-                terminated=terminated # Store terminated flag for GAE
+                terminated=terminated,  # Store terminated flag for GAE
             )
             self.trajectory_buffer.append(step_data)
 
@@ -428,8 +567,16 @@ class AgentTheseusPPO:
 
             # Update progress bar description less frequently if needed
             if episode_steps % 20 == 0:
-                avg_r_hero_disp = np.mean(self.episode_rewards_hero_deque) if self.episode_rewards_hero_deque else 0.0
-                avg_r_gun_disp = np.mean(self.episode_rewards_gun_deque) if self.episode_rewards_gun_deque else 0.0
+                avg_r_hero_disp = (
+                    np.mean(self.episode_rewards_hero_deque)
+                    if self.episode_rewards_hero_deque
+                    else 0.0
+                )
+                avg_r_gun_disp = (
+                    np.mean(self.episode_rewards_gun_deque)
+                    if self.episode_rewards_gun_deque
+                    else 0.0
+                )
                 progress.update(
                     task_id,
                     description=(
@@ -440,22 +587,32 @@ class AgentTheseusPPO:
                     ),
                 )
 
-
             # --- Check for Episode End or Horizon ---
             if terminated or truncated:
-                self.logger.debug(f"Episode {episode_num} ended at step {episode_steps} ({'Terminated' if terminated else 'Truncated'}). Rollout steps: {self.total_steps}/{self.horizon}")
-                self.current_state = self._initialize_episode() # Reset for next rollout/episode
+                self.logger.debug(
+                    f"Episode {episode_num} ended at step {episode_steps} ({'Terminated' if terminated else 'Truncated'}). Rollout steps: {self.total_steps}/{self.horizon}"
+                )
+                self.current_state = (
+                    self._initialize_episode()
+                )  # Reset for next rollout/episode
                 if self.current_state is None:
                     self.logger.error("Failed to reset env after episode end.")
                     # Training loop will likely stop due to subsequent None state check
-                break # Exit the inner loop (rollout step loop)
+                break  # Exit the inner loop (rollout step loop)
 
             if self.total_steps >= self.horizon:
-                self.logger.debug(f"Horizon {self.horizon} reached during Ep {episode_num} at step {episode_steps}.")
-                break # Exit the inner loop (rollout step loop)
+                self.logger.debug(
+                    f"Horizon {self.horizon} reached during Ep {episode_num} at step {episode_steps}."
+                )
+                break  # Exit the inner loop (rollout step loop)
 
-        return episode_reward_hero, episode_reward_gun, episode_steps, terminated, truncated
-
+        return (
+            episode_reward_hero,
+            episode_reward_gun,
+            episode_steps,
+            terminated,
+            truncated,
+        )
 
     def _initialize_episode(self) -> Optional[State]:
         """Resets the environment and returns the initial state."""
@@ -468,17 +625,21 @@ class AgentTheseusPPO:
             self.logger.error(f"Failed to initialize environment: {e}", exc_info=True)
             return None
 
-    def _sample_action(self, actor_net: nn.Module, state_graph: Union[HeteroData, Batch]) -> Tuple[Optional[int], Optional[torch.Tensor]]:
+    def _sample_action(
+        self, actor_net: nn.Module, state_graph: Union[HeteroData, Batch]
+    ) -> Tuple[Optional[int], Optional[torch.Tensor]]:
         """Samples an action from the actor network's output distribution."""
         try:
-            actor_net.eval() # Set to eval mode for sampling
+            actor_net.eval()  # Set to eval mode for sampling
             logits: torch.Tensor = actor_net(state_graph)
-            actor_net.train() # Set back to train mode
+            actor_net.train()  # Set back to train mode
 
             if logits.numel() == 0:
-                self.logger.warning(f"{type(actor_net).__name__} produced empty logits.")
+                self.logger.warning(
+                    f"{type(actor_net).__name__} produced empty logits."
+                )
                 return None, None
-            if logits.ndim > 1: # Handle batch dim if present (should be 1 sample here)
+            if logits.ndim > 1:  # Handle batch dim if present (should be 1 sample here)
                 logits = logits.squeeze(0)
 
             dist = Categorical(logits=logits)
@@ -489,26 +650,35 @@ class AgentTheseusPPO:
             return action.item(), log_prob
 
         except Exception as e:
-            self.logger.error(f"Error sampling action with {type(actor_net).__name__}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error sampling action with {type(actor_net).__name__}: {e}",
+                exc_info=True,
+            )
             return None, None
 
-    def _get_value(self, critic_net: nn.Module, state_graph: Union[HeteroData, Batch]) -> Optional[torch.Tensor]:
+    def _get_value(
+        self, critic_net: nn.Module, state_graph: Union[HeteroData, Batch]
+    ) -> Optional[torch.Tensor]:
         """Gets the value estimate from the critic network."""
         try:
-            critic_net.eval() # Set to eval mode for value estimation
+            critic_net.eval()  # Set to eval mode for value estimation
             value: torch.Tensor = critic_net(state_graph)
-            critic_net.train() # Set back to train mode
+            critic_net.train()  # Set back to train mode
 
             if value.numel() != 1:
-                 self.logger.warning(f"{type(critic_net).__name__} produced non-scalar value: shape {value.shape}. Taking first element.")
-                 value = value.flatten()[0]
+                self.logger.warning(
+                    f"{type(critic_net).__name__} produced non-scalar value: shape {value.shape}. Taking first element."
+                )
+                value = value.flatten()[0]
             # self.logger.debug(f"{type(critic_net).__name__} estimated value: {value.item():.4f}")
-            return value.squeeze() # Ensure scalar tensor
+            return value.squeeze()  # Ensure scalar tensor
 
         except Exception as e:
-            self.logger.error(f"Error getting value with {type(critic_net).__name__}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error getting value with {type(critic_net).__name__}: {e}",
+                exc_info=True,
+            )
             return None
-
 
     def _step_environment(
         self, move_action: int, shoot_action: int
@@ -520,23 +690,39 @@ class AgentTheseusPPO:
             step_result: Tuple = self.env.step(combined_action_list)
 
             if not isinstance(step_result, tuple) or len(step_result) < 3:
-                 raise TypeError(f"Env step returned unexpected format: {type(step_result)}")
+                raise TypeError(
+                    f"Env step returned unexpected format: {type(step_result)}"
+                )
 
             next_s, reward_tuple, terminated_flag = step_result[:3]
-            truncated_flag = step_result[3] if len(step_result) > 3 and isinstance(step_result[3], bool) else False
+            truncated_flag = (
+                step_result[3]
+                if len(step_result) > 3 and isinstance(step_result[3], bool)
+                else False
+            )
 
             next_state: Optional[State] = None
             if isinstance(next_s, State):
-                 next_state = next_s
-            elif next_s is not None and not bool(terminated_flag) and not bool(truncated_flag):
-                 self.logger.error(f"Env step returned invalid non-terminal state type: {type(next_s)}")
-                 return None, 0.0, 0.0, True, True # Critical failure
+                next_state = next_s
+            elif (
+                next_s is not None
+                and not bool(terminated_flag)
+                and not bool(truncated_flag)
+            ):
+                self.logger.error(
+                    f"Env step returned invalid non-terminal state type: {type(next_s)}"
+                )
+                return None, 0.0, 0.0, True, True  # Critical failure
 
             if not isinstance(reward_tuple, (tuple, list)) or len(reward_tuple) < 2:
-                 self.logger.error(f"Env step returned invalid reward format: {reward_tuple}")
-                 return next_state, 0.0, 0.0, True, True
+                self.logger.error(
+                    f"Env step returned invalid reward format: {reward_tuple}"
+                )
+                return next_state, 0.0, 0.0, True, True
 
-            reward_hero: float = float(0 if reward_tuple[0] is None else reward_tuple[0])
+            reward_hero: float = float(
+                0 if reward_tuple[0] is None else reward_tuple[0]
+            )
             reward_gun: float = float(0 if reward_tuple[1] is None else reward_tuple[1])
             terminated: bool = bool(terminated_flag)
             truncated: bool = bool(truncated_flag)
@@ -547,7 +733,9 @@ class AgentTheseusPPO:
             self.logger.error(f"Error during environment step: {e}", exc_info=True)
             return None, 0.0, 0.0, True, True
 
-    def _calculate_gae_and_returns(self, last_state: Optional[State], last_terminated: bool, last_truncated: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _calculate_gae_and_returns(
+        self, last_state: Optional[State], last_terminated: bool, last_truncated: bool
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Calculates Generalized Advantage Estimation (GAE) and returns (value targets).
         Processes the stored trajectory_buffer.
@@ -568,7 +756,9 @@ class AgentTheseusPPO:
         # --- Get value of the last state for bootstrapping ---
         last_hero_value = 0.0
         last_gun_value = 0.0
-        if not last_terminated and last_state is not None: # Bootstrap if not terminal state
+        if (
+            not last_terminated and last_state is not None
+        ):  # Bootstrap if not terminal state
             try:
                 with torch.no_grad():
                     graph_h_last = self.hero_critic_net.preprocess_state(last_state)
@@ -578,13 +768,19 @@ class AgentTheseusPPO:
                         graph_g_last = graph_g_last.to(self.device)
                         val_h = self._get_value(self.hero_critic_net, graph_h_last)
                         val_g = self._get_value(self.gun_critic_net, graph_g_last)
-                        if val_h is not None: last_hero_value = val_h.item()
-                        if val_g is not None: last_gun_value = val_g.item()
+                        if val_h is not None:
+                            last_hero_value = val_h.item()
+                        if val_g is not None:
+                            last_gun_value = val_g.item()
                     else:
-                        self.logger.warning("Preprocessing failed for GAE bootstrap state. Using value 0.")
+                        self.logger.warning(
+                            "Preprocessing failed for GAE bootstrap state. Using value 0."
+                        )
 
             except Exception as e:
-                self.logger.warning(f"Error getting value for GAE bootstrap state: {e}. Using value 0.")
+                self.logger.warning(
+                    f"Error getting value for GAE bootstrap state: {e}. Using value 0."
+                )
 
         # --- Iterate backwards through the trajectory ---
         for step in reversed(self.trajectory_buffer):
@@ -592,15 +788,37 @@ class AgentTheseusPPO:
             current_gun_value = step.gun_value.item()
             reward_hero = step.hero_reward
             reward_gun = step.gun_reward
-            terminated_mask = 1.0 - float(step.terminated) # 0 if terminated, 1 otherwise
+            terminated_mask = 1.0 - float(
+                step.terminated
+            )  # 0 if terminated, 1 otherwise
 
             # Calculate delta (TD error)
-            delta_hero = reward_hero + self.discount_factor * last_hero_value * terminated_mask - current_hero_value
-            delta_gun = reward_gun + self.discount_factor * last_gun_value * terminated_mask - current_gun_value
+            delta_hero = (
+                reward_hero
+                + self.discount_factor * last_hero_value * terminated_mask
+                - current_hero_value
+            )
+            delta_gun = (
+                reward_gun
+                + self.discount_factor * last_gun_value * terminated_mask
+                - current_gun_value
+            )
 
             # Calculate GAE advantage for this step
-            adv_hero = delta_hero + self.discount_factor * self.gae_lambda * hero_last_gae_lam * terminated_mask
-            adv_gun = delta_gun + self.discount_factor * self.gae_lambda * gun_last_gae_lam * terminated_mask
+            adv_hero = (
+                delta_hero
+                + self.discount_factor
+                * self.gae_lambda
+                * hero_last_gae_lam
+                * terminated_mask
+            )
+            adv_gun = (
+                delta_gun
+                + self.discount_factor
+                * self.gae_lambda
+                * gun_last_gae_lam
+                * terminated_mask
+            )
 
             hero_advantages.append(adv_hero)
             gun_advantages.append(adv_gun)
@@ -615,22 +833,33 @@ class AgentTheseusPPO:
         hero_advantages.reverse()
         gun_advantages.reverse()
 
-        hero_adv_tensor = torch.tensor(hero_advantages, dtype=torch.float32, device=self.device)
-        gun_adv_tensor = torch.tensor(gun_advantages, dtype=torch.float32, device=self.device)
+        hero_adv_tensor = torch.tensor(
+            hero_advantages, dtype=torch.float32, device=self.device
+        )
+        gun_adv_tensor = torch.tensor(
+            gun_advantages, dtype=torch.float32, device=self.device
+        )
 
         # --- Calculate returns (value targets) ---
         # Returns = Advantages + Values
-        values_hero = torch.stack([step.hero_value for step in self.trajectory_buffer]).to(self.device)
-        values_gun = torch.stack([step.gun_value for step in self.trajectory_buffer]).to(self.device)
+        values_hero = torch.stack(
+            [step.hero_value for step in self.trajectory_buffer]
+        ).to(self.device)
+        values_gun = torch.stack(
+            [step.gun_value for step in self.trajectory_buffer]
+        ).to(self.device)
         hero_returns = hero_adv_tensor + values_hero
         gun_returns = gun_adv_tensor + values_gun
 
         # --- Normalize Advantages (optional but recommended) ---
-        hero_adv_tensor = (hero_adv_tensor - hero_adv_tensor.mean()) / (hero_adv_tensor.std() + 1e-8)
-        gun_adv_tensor = (gun_adv_tensor - gun_adv_tensor.mean()) / (gun_adv_tensor.std() + 1e-8)
+        hero_adv_tensor = (hero_adv_tensor - hero_adv_tensor.mean()) / (
+            hero_adv_tensor.std() + 1e-8
+        )
+        gun_adv_tensor = (gun_adv_tensor - gun_adv_tensor.mean()) / (
+            gun_adv_tensor.std() + 1e-8
+        )
 
         return hero_adv_tensor, hero_returns, gun_adv_tensor, gun_returns
-
 
     def _update_policy(self) -> None:
         """Performs the PPO learning update using the collected trajectory."""
@@ -652,12 +881,14 @@ class AgentTheseusPPO:
 
         # --- 1. Calculate Advantages and Returns ---
         try:
-            hero_advantages, hero_returns, gun_advantages, gun_returns = self._calculate_gae_and_returns(
-                last_state, last_terminated, last_truncated
+            hero_advantages, hero_returns, gun_advantages, gun_returns = (
+                self._calculate_gae_and_returns(
+                    last_state, last_terminated, last_truncated
+                )
             )
         except Exception as e:
             self.logger.error(f"Error calculating GAE/Returns: {e}", exc_info=True)
-            self.trajectory_buffer.clear() # Clear buffer on critical error
+            self.trajectory_buffer.clear()  # Clear buffer on critical error
             self.total_steps = 0
             return
 
@@ -665,10 +896,22 @@ class AgentTheseusPPO:
         # Extract data from buffer
         hero_graphs = [step.state_graph_hero for step in self.trajectory_buffer]
         gun_graphs = [step.state_graph_gun for step in self.trajectory_buffer]
-        move_actions = torch.tensor([step.move_action for step in self.trajectory_buffer], dtype=torch.long, device=self.device)
-        shoot_actions = torch.tensor([step.shoot_action for step in self.trajectory_buffer], dtype=torch.long, device=self.device)
-        old_move_log_probs = torch.stack([step.move_log_prob for step in self.trajectory_buffer]).to(self.device)
-        old_shoot_log_probs = torch.stack([step.shoot_log_prob for step in self.trajectory_buffer]).to(self.device)
+        move_actions = torch.tensor(
+            [step.move_action for step in self.trajectory_buffer],
+            dtype=torch.long,
+            device=self.device,
+        )
+        shoot_actions = torch.tensor(
+            [step.shoot_action for step in self.trajectory_buffer],
+            dtype=torch.long,
+            device=self.device,
+        )
+        old_move_log_probs = torch.stack(
+            [step.move_log_prob for step in self.trajectory_buffer]
+        ).to(self.device)
+        old_shoot_log_probs = torch.stack(
+            [step.shoot_log_prob for step in self.trajectory_buffer]
+        ).to(self.device)
 
         # Batch the graphs (needs PyG Batch)
         try:
@@ -684,9 +927,11 @@ class AgentTheseusPPO:
         indices = np.arange(data_size)
 
         # --- 3. Optimization Loop ---
-        self.logger.debug(f"Starting PPO optimization ({self.epochs_per_update} epochs, {data_size} samples, {self.mini_batch_size} batch size)")
+        self.logger.debug(
+            f"Starting PPO optimization ({self.epochs_per_update} epochs, {data_size} samples, {self.mini_batch_size} batch size)"
+        )
         for epoch in range(self.epochs_per_update):
-            np.random.shuffle(indices) # Shuffle data each epoch
+            np.random.shuffle(indices)  # Shuffle data each epoch
             for start in range(0, data_size, self.mini_batch_size):
                 end = start + self.mini_batch_size
                 mb_indices = indices[start:end]
@@ -696,8 +941,12 @@ class AgentTheseusPPO:
                 # full batch and use the indices inside the loss calculation where needed,
                 # or reconstruct mini-batches if absolutely necessary (more overhead).
                 # Let's try using indices on the tensors directly.
-                mb_hero_graphs_batch = Batch.from_data_list([hero_graphs[i] for i in mb_indices]).to(self.device)
-                mb_gun_graphs_batch = Batch.from_data_list([gun_graphs[i] for i in mb_indices]).to(self.device)
+                mb_hero_graphs_batch = Batch.from_data_list(
+                    [hero_graphs[i] for i in mb_indices]
+                ).to(self.device)
+                mb_gun_graphs_batch = Batch.from_data_list(
+                    [gun_graphs[i] for i in mb_indices]
+                ).to(self.device)
 
                 mb_move_actions = move_actions[mb_indices]
                 mb_shoot_actions = shoot_actions[mb_indices]
@@ -708,7 +957,6 @@ class AgentTheseusPPO:
                 mb_hero_returns = hero_returns[mb_indices]
                 mb_gun_returns = gun_returns[mb_indices]
 
-
                 try:
                     # --- Forward pass for current policy/value estimates ---
                     # Hero
@@ -716,41 +964,62 @@ class AgentTheseusPPO:
                     hero_dist = Categorical(logits=hero_logits)
                     new_move_log_probs = hero_dist.log_prob(mb_move_actions)
                     hero_entropy = hero_dist.entropy().mean()
-                    hero_values = self.hero_critic_net(mb_hero_graphs_batch).squeeze() # Assume critic outputs [B, 1]
+                    hero_values = self.hero_critic_net(
+                        mb_hero_graphs_batch
+                    ).squeeze()  # Assume critic outputs [B, 1]
 
                     # Gun
                     gun_logits = self.gun_actor_net(mb_gun_graphs_batch)
                     gun_dist = Categorical(logits=gun_logits)
                     new_shoot_log_probs = gun_dist.log_prob(mb_shoot_actions)
                     gun_entropy = gun_dist.entropy().mean()
-                    gun_values = self.gun_critic_net(mb_gun_graphs_batch).squeeze() # Assume critic outputs [B, 1]
-
+                    gun_values = self.gun_critic_net(
+                        mb_gun_graphs_batch
+                    ).squeeze()  # Assume critic outputs [B, 1]
 
                     # --- Calculate Hero Losses ---
                     # Actor Loss (PPO Clipped Objective)
                     ratio_hero = torch.exp(new_move_log_probs - mb_old_move_log_probs)
                     surr1_hero = ratio_hero * mb_hero_advantages
-                    surr2_hero = torch.clamp(ratio_hero, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon) * mb_hero_advantages
+                    surr2_hero = (
+                        torch.clamp(
+                            ratio_hero, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon
+                        )
+                        * mb_hero_advantages
+                    )
                     actor_loss_hero = -torch.min(surr1_hero, surr2_hero).mean()
 
                     # Critic Loss (Value Loss)
                     critic_loss_hero = self.critic_loss_fn(hero_values, mb_hero_returns)
 
                     # Total Hero Loss
-                    total_loss_hero = actor_loss_hero + self.vf_coeff * critic_loss_hero - self.entropy_coeff * hero_entropy
+                    total_loss_hero = (
+                        actor_loss_hero
+                        + self.vf_coeff * critic_loss_hero
+                        - self.entropy_coeff * hero_entropy
+                    )
 
                     # --- Calculate Gun Losses ---
                     # Actor Loss
                     ratio_gun = torch.exp(new_shoot_log_probs - mb_old_shoot_log_probs)
                     surr1_gun = ratio_gun * mb_gun_advantages
-                    surr2_gun = torch.clamp(ratio_gun, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon) * mb_gun_advantages
+                    surr2_gun = (
+                        torch.clamp(
+                            ratio_gun, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon
+                        )
+                        * mb_gun_advantages
+                    )
                     actor_loss_gun = -torch.min(surr1_gun, surr2_gun).mean()
 
                     # Critic Loss
                     critic_loss_gun = self.critic_loss_fn(gun_values, mb_gun_returns)
 
                     # Total Gun Loss
-                    total_loss_gun = actor_loss_gun + self.vf_coeff * critic_loss_gun - self.entropy_coeff * gun_entropy
+                    total_loss_gun = (
+                        actor_loss_gun
+                        + self.vf_coeff * critic_loss_gun
+                        - self.entropy_coeff * gun_entropy
+                    )
 
                     # --- Optimization Steps ---
                     # Hero
@@ -782,21 +1051,28 @@ class AgentTheseusPPO:
                     self.entropy_gun_deque.append(gun_entropy.item())
 
                 except Exception as e:
-                    self.logger.error(f"Error during PPO optimization step (Epoch {epoch}, Batch {start // self.mini_batch_size}): {e}", exc_info=True)
+                    self.logger.error(
+                        f"Error during PPO optimization step (Epoch {epoch}, Batch {start // self.mini_batch_size}): {e}",
+                        exc_info=True,
+                    )
                     # Decide whether to continue or break epoch/update
-                    break # Break inner loop for safety
-
+                    break  # Break inner loop for safety
 
         # --- 4. Clear Trajectory Buffer ---
         self.trajectory_buffer.clear()
-        self.total_steps = 0 # Reset step counter for next rollout
+        self.total_steps = 0  # Reset step counter for next rollout
         self.logger.debug("PPO update finished. Trajectory buffer cleared.")
-
 
     def _save_checkpoint_if_needed(self, episode: int) -> None:
         """Saves a checkpoint of the agent's state if the save interval is reached."""
-        if self.save_interval > 0 and episode > 0 and (episode + 1) % self.save_interval == 0:
-            self.logger.info(f"Reached save interval at episode {episode}. Saving checkpoint...")
+        if (
+            self.save_interval > 0
+            and episode > 0
+            and (episode + 1) % self.save_interval == 0
+        ):
+            self.logger.info(
+                f"Reached save interval at episode {episode}. Saving checkpoint..."
+            )
             save_path = self.dump()
             if save_path:
                 self.logger.info(f"Checkpoint saved successfully to: {save_path}")
@@ -807,7 +1083,9 @@ class AgentTheseusPPO:
         """Displays a summary table of training performance."""
         # This function remains the same as the DQN version
         if not self.training_summary_data or total_episodes_completed == 0:
-            self.logger.info("No training data recorded or no episodes completed, skipping summary.")
+            self.logger.info(
+                "No training data recorded or no episodes completed, skipping summary."
+            )
             return
 
         self.logger.info("Generating Training Summary Table...")
@@ -819,22 +1097,32 @@ class AgentTheseusPPO:
         for i in range(num_blocks):
             start_episode = i * block_size + 1
             end_episode = min((i + 1) * block_size, total_episodes_completed)
-            block_data = df[(df['Episode'] >= start_episode) & (df['Episode'] <= end_episode)]
-            if block_data.empty: continue
-            avg_reward_hero = block_data['Reward_Hero'].mean()
-            avg_reward_gun = block_data['Reward_Gun'].mean()
-            avg_time_alive = block_data['Time_Alive'].mean()
-            summary_rows.append((
-                f"{start_episode}-{end_episode}",
-                f"{avg_reward_hero:.3f}", f"{avg_reward_gun:.3f}", f"{avg_time_alive:.2f}"
-            ))
+            block_data = df[
+                (df["Episode"] >= start_episode) & (df["Episode"] <= end_episode)
+            ]
+            if block_data.empty:
+                continue
+            avg_reward_hero = block_data["Reward_Hero"].mean()
+            avg_reward_gun = block_data["Reward_Gun"].mean()
+            avg_time_alive = block_data["Time_Alive"].mean()
+            summary_rows.append(
+                (
+                    f"{start_episode}-{end_episode}",
+                    f"{avg_reward_hero:.3f}",
+                    f"{avg_reward_gun:.3f}",
+                    f"{avg_time_alive:.2f}",
+                )
+            )
 
-        table = Table(title=f"Training Summary (Completed {total_episodes_completed} Episodes)")
+        table = Table(
+            title=f"Training Summary (Completed {total_episodes_completed} Episodes)"
+        )
         table.add_column("Episode Block", justify="center", style="cyan", no_wrap=True)
         table.add_column("Avg Hero Reward", justify="right", style="magenta")
         table.add_column("Avg Gun Reward", justify="right", style="green")
         table.add_column("Avg Time Alive", justify="right", style="yellow")
-        for row in summary_rows: table.add_row(*row)
+        for row in summary_rows:
+            table.add_row(*row)
         self.console.print(table)
 
     def dump(self, save_dir: str = "model_saves_ppo") -> Optional[str]:
@@ -856,20 +1144,44 @@ class AgentTheseusPPO:
                 "hero_critic_optim": "hero_critic_optimizer.pth",
                 "gun_actor_optim": "gun_actor_optimizer.pth",
                 "gun_critic_optim": "gun_critic_optimizer.pth",
-                "config": f"{base_name}_config.yaml"
+                "config": f"{base_name}_config.yaml",
             }
 
             # Save network states
-            torch.save(self.hero_actor_net.state_dict(), os.path.join(dpath, filenames["hero_actor"]))
-            torch.save(self.hero_critic_net.state_dict(), os.path.join(dpath, filenames["hero_critic"]))
-            torch.save(self.gun_actor_net.state_dict(), os.path.join(dpath, filenames["gun_actor"]))
-            torch.save(self.gun_critic_net.state_dict(), os.path.join(dpath, filenames["gun_critic"]))
+            torch.save(
+                self.hero_actor_net.state_dict(),
+                os.path.join(dpath, filenames["hero_actor"]),
+            )
+            torch.save(
+                self.hero_critic_net.state_dict(),
+                os.path.join(dpath, filenames["hero_critic"]),
+            )
+            torch.save(
+                self.gun_actor_net.state_dict(),
+                os.path.join(dpath, filenames["gun_actor"]),
+            )
+            torch.save(
+                self.gun_critic_net.state_dict(),
+                os.path.join(dpath, filenames["gun_critic"]),
+            )
 
             # Save optimizer states
-            torch.save(self.hero_actor_optimizer.state_dict(), os.path.join(dpath, filenames["hero_actor_optim"]))
-            torch.save(self.hero_critic_optimizer.state_dict(), os.path.join(dpath, filenames["hero_critic_optim"]))
-            torch.save(self.gun_actor_optimizer.state_dict(), os.path.join(dpath, filenames["gun_actor_optim"]))
-            torch.save(self.gun_critic_optimizer.state_dict(), os.path.join(dpath, filenames["gun_critic_optim"]))
+            torch.save(
+                self.hero_actor_optimizer.state_dict(),
+                os.path.join(dpath, filenames["hero_actor_optim"]),
+            )
+            torch.save(
+                self.hero_critic_optimizer.state_dict(),
+                os.path.join(dpath, filenames["hero_critic_optim"]),
+            )
+            torch.save(
+                self.gun_actor_optimizer.state_dict(),
+                os.path.join(dpath, filenames["gun_actor_optim"]),
+            )
+            torch.save(
+                self.gun_critic_optimizer.state_dict(),
+                os.path.join(dpath, filenames["gun_critic_optim"]),
+            )
 
             state_info: Dict[str, Any] = {
                 "agent_type": "PPO",
@@ -887,7 +1199,9 @@ class AgentTheseusPPO:
                 "gun_actor_class": f"{type(self.gun_actor_net).__module__}.{type(self.gun_actor_net).__name__}",
                 "gun_critic_class": f"{type(self.gun_critic_net).__module__}.{type(self.gun_critic_net).__name__}",
                 # PPO Hyperparameters
-                "learning_rate": self.hero_actor_optimizer.param_groups[0]['lr'], # Assume same LR for all
+                "learning_rate": self.hero_actor_optimizer.param_groups[0][
+                    "lr"
+                ],  # Assume same LR for all
                 "discount_factor": self.discount_factor,
                 "horizon": self.horizon,
                 "epochs_per_update": self.epochs_per_update,
@@ -912,7 +1226,9 @@ class AgentTheseusPPO:
             return dpath
 
         except Exception as e:
-            self.logger.error(f"Failed to dump PPO agent state to {dpath}: {e}", exc_info=True)
+            self.logger.error(
+                f"Failed to dump PPO agent state to {dpath}: {e}", exc_info=True
+            )
             return None
 
     @classmethod
@@ -926,7 +1242,9 @@ class AgentTheseusPPO:
             logger.error(f"Load path is not a valid directory: {load_path_str}")
             return None
 
-        yaml_files = [f for f in os.listdir(load_path_str) if f.endswith('_config.yaml')]
+        yaml_files = [
+            f for f in os.listdir(load_path_str) if f.endswith("_config.yaml")
+        ]
         if not yaml_files:
             logger.error(f"No '_config.yaml' file found in: {load_path_str}")
             return None
@@ -936,28 +1254,33 @@ class AgentTheseusPPO:
             with open(yaml_path, "r") as f:
                 state_info: Dict[str, Any] = yaml.safe_load(f)
         except Exception as e:
-            logger.error(f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True)
+            logger.error(
+                f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True
+            )
             return None
 
         # --- Verify Agent Type ---
         if state_info.get("agent_type") != "PPO":
-            logger.error(f"Config file indicates agent type is {state_info.get('agent_type')}, not PPO.")
+            logger.error(
+                f"Config file indicates agent type is {state_info.get('agent_type')}, not PPO."
+            )
             return None
 
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Loading models onto device: {device}")
 
         try:
+
             def get_class(class_path: str) -> Type:
-                module_path, class_name = class_path.rsplit('.', 1)
+                module_path, class_name = class_path.rsplit(".", 1)
                 module = importlib.import_module(module_path)
                 return getattr(module, class_name)
 
             # --- Reconstruct Networks ---
-            HeroActorClass = get_class(state_info['hero_actor_class'])
-            HeroCriticClass = get_class(state_info['hero_critic_class'])
-            GunActorClass = get_class(state_info['gun_actor_class'])
-            GunCriticClass = get_class(state_info['gun_critic_class'])
+            HeroActorClass = get_class(state_info["hero_actor_class"])
+            HeroCriticClass = get_class(state_info["hero_critic_class"])
+            GunActorClass = get_class(state_info["gun_actor_class"])
+            GunCriticClass = get_class(state_info["gun_critic_class"])
 
             # Instantiate networks (assuming default constructors or loading args from state_info if needed)
             hero_actor_net = HeroActorClass()
@@ -976,14 +1299,24 @@ class AgentTheseusPPO:
             gun_critic_net.load_state_dict(torch.load(gc_path, map_location=device))
             logger.info("Network state dicts loaded successfully.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
-            logger.error(f"Error reconstructing or loading network models: {e}", exc_info=True)
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.error(
+                f"Error reconstructing or loading network models: {e}", exc_info=True
+            )
             return None
 
         try:
             # --- Reconstruct Optimizers ---
             learning_rate = state_info.get("learning_rate", DEFAULT_LEARNING_RATE_PPO)
-            OptimizerClass = get_class(state_info.get('optimizer_class', 'torch.optim.AdamW'))
+            OptimizerClass = get_class(
+                state_info.get("optimizer_class", "torch.optim.AdamW")
+            )
 
             # Move networks to device BEFORE creating optimizers
             hero_actor_net.to(device)
@@ -991,33 +1324,61 @@ class AgentTheseusPPO:
             gun_actor_net.to(device)
             gun_critic_net.to(device)
 
-            hero_actor_optimizer = OptimizerClass(hero_actor_net.parameters(), lr=learning_rate)
-            hero_critic_optimizer = OptimizerClass(hero_critic_net.parameters(), lr=learning_rate)
-            gun_actor_optimizer = OptimizerClass(gun_actor_net.parameters(), lr=learning_rate)
-            gun_critic_optimizer = OptimizerClass(gun_critic_net.parameters(), lr=learning_rate)
+            hero_actor_optimizer = OptimizerClass(
+                hero_actor_net.parameters(), lr=learning_rate
+            )
+            hero_critic_optimizer = OptimizerClass(
+                hero_critic_net.parameters(), lr=learning_rate
+            )
+            gun_actor_optimizer = OptimizerClass(
+                gun_actor_net.parameters(), lr=learning_rate
+            )
+            gun_critic_optimizer = OptimizerClass(
+                gun_critic_net.parameters(), lr=learning_rate
+            )
 
             # Load optimizer states if files exist
-            optim_files = ["hero_actor_optim", "hero_critic_optim", "gun_actor_optim", "gun_critic_optim"]
-            optimizers = [hero_actor_optimizer, hero_critic_optimizer, gun_actor_optimizer, gun_critic_optimizer]
+            optim_files = [
+                "hero_actor_optim",
+                "hero_critic_optim",
+                "gun_actor_optim",
+                "gun_critic_optim",
+            ]
+            optimizers = [
+                hero_actor_optimizer,
+                hero_critic_optimizer,
+                gun_actor_optimizer,
+                gun_critic_optimizer,
+            ]
             for name, optim in zip(optim_files, optimizers):
                 optim_path = os.path.join(load_path_str, state_info[f"{name}_file"])
                 if os.path.exists(optim_path):
                     optim.load_state_dict(torch.load(optim_path, map_location=device))
                     logger.info(f"{name.replace('_', ' ').title()} state loaded.")
                 else:
-                    logger.warning(f"{name.replace('_', ' ').title()} state file not found: {optim_path}. Initializing fresh.")
+                    logger.warning(
+                        f"{name.replace('_', ' ').title()} state file not found: {optim_path}. Initializing fresh."
+                    )
 
             logger.info("Optimizers reconstructed.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
-            logger.error(f"Error reconstructing or loading optimizers: {e}", exc_info=True)
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.error(
+                f"Error reconstructing or loading optimizers: {e}", exc_info=True
+            )
             return None
 
         try:
-             env = Environment() # Assuming default constructor works
+            env = Environment()  # Assuming default constructor works
         except Exception as e:
-             logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
-             return None
+            logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
+            return None
 
         try:
             # --- Instantiate Agent with loaded state ---
@@ -1028,26 +1389,32 @@ class AgentTheseusPPO:
                 gun_critic_net=gun_critic_net,
                 env=env,
                 optimizer_class=OptimizerClass,
-                learning_rate=learning_rate, # Already applied to loaded optims
-                discount_factor=state_info.get('discount_factor', DEFAULT_DISCOUNT_FACTOR_PPO),
-                horizon=state_info.get('horizon', DEFAULT_HORIZON),
-                epochs_per_update=state_info.get('epochs_per_update', DEFAULT_EPOCHS_PER_UPDATE),
-                mini_batch_size=state_info.get('mini_batch_size', DEFAULT_MINI_BATCH_SIZE_PPO),
-                clip_epsilon=state_info.get('clip_epsilon', DEFAULT_CLIP_EPSILON),
-                gae_lambda=state_info.get('gae_lambda', DEFAULT_GAE_LAMBDA),
-                entropy_coeff=state_info.get('entropy_coeff', DEFAULT_ENTROPY_COEFF),
-                vf_coeff=state_info.get('vf_coeff', DEFAULT_VF_COEFF),
-                log_window_size=state_info.get('log_window_size', LOGGING_WINDOW),
-                save_interval=state_info.get('save_interval', SAVE_INTERVAL),
-             )
+                learning_rate=learning_rate,  # Already applied to loaded optims
+                discount_factor=state_info.get(
+                    "discount_factor", DEFAULT_DISCOUNT_FACTOR_PPO
+                ),
+                horizon=state_info.get("horizon", DEFAULT_HORIZON),
+                epochs_per_update=state_info.get(
+                    "epochs_per_update", DEFAULT_EPOCHS_PER_UPDATE
+                ),
+                mini_batch_size=state_info.get(
+                    "mini_batch_size", DEFAULT_MINI_BATCH_SIZE_PPO
+                ),
+                clip_epsilon=state_info.get("clip_epsilon", DEFAULT_CLIP_EPSILON),
+                gae_lambda=state_info.get("gae_lambda", DEFAULT_GAE_LAMBDA),
+                entropy_coeff=state_info.get("entropy_coeff", DEFAULT_ENTROPY_COEFF),
+                vf_coeff=state_info.get("vf_coeff", DEFAULT_VF_COEFF),
+                log_window_size=state_info.get("log_window_size", LOGGING_WINDOW),
+                save_interval=state_info.get("save_interval", SAVE_INTERVAL),
+            )
 
             # --- Restore specific state variables ---
             agent.hero_actor_optimizer = hero_actor_optimizer
             agent.hero_critic_optimizer = hero_critic_optimizer
             agent.gun_actor_optimizer = gun_actor_optimizer
             agent.gun_critic_optimizer = gun_critic_optimizer
-            agent.total_reward_hero = state_info.get('total_reward_hero', 0.0)
-            agent.total_reward_gun = state_info.get('total_reward_gun', 0.0)
+            agent.total_reward_hero = state_info.get("total_reward_hero", 0.0)
+            agent.total_reward_gun = state_info.get("total_reward_gun", 0.0)
             # PPO doesn't have epsilon or sync steps state to restore
 
             # Ensure networks are in train mode after loading (PPO alternates eval/train)
@@ -1060,8 +1427,12 @@ class AgentTheseusPPO:
             return agent
 
         except Exception as e:
-            logger.error(f"Error instantiating AgentTheseusPPO during final load step: {e}", exc_info=True)
+            logger.error(
+                f"Error instantiating AgentTheseusPPO during final load step: {e}",
+                exc_info=True,
+            )
             return None
+
     def dump(self, save_dir: str = "model_saves_ppo") -> Optional[str]:
         """Saves the PPO agent state, including network architecture details."""
         timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1081,20 +1452,44 @@ class AgentTheseusPPO:
                 "hero_critic_optim": "hero_critic_optimizer.pth",
                 "gun_actor_optim": "gun_actor_optimizer.pth",
                 "gun_critic_optim": "gun_critic_optimizer.pth",
-                "config": f"{base_name}_config.yaml"
+                "config": f"{base_name}_config.yaml",
             }
 
             # Save network states
-            torch.save(self.hero_actor_net.state_dict(), os.path.join(dpath, filenames["hero_actor"]))
-            torch.save(self.hero_critic_net.state_dict(), os.path.join(dpath, filenames["hero_critic"]))
-            torch.save(self.gun_actor_net.state_dict(), os.path.join(dpath, filenames["gun_actor"]))
-            torch.save(self.gun_critic_net.state_dict(), os.path.join(dpath, filenames["gun_critic"]))
+            torch.save(
+                self.hero_actor_net.state_dict(),
+                os.path.join(dpath, filenames["hero_actor"]),
+            )
+            torch.save(
+                self.hero_critic_net.state_dict(),
+                os.path.join(dpath, filenames["hero_critic"]),
+            )
+            torch.save(
+                self.gun_actor_net.state_dict(),
+                os.path.join(dpath, filenames["gun_actor"]),
+            )
+            torch.save(
+                self.gun_critic_net.state_dict(),
+                os.path.join(dpath, filenames["gun_critic"]),
+            )
 
             # Save optimizer states
-            torch.save(self.hero_actor_optimizer.state_dict(), os.path.join(dpath, filenames["hero_actor_optim"]))
-            torch.save(self.hero_critic_optimizer.state_dict(), os.path.join(dpath, filenames["hero_critic_optim"]))
-            torch.save(self.gun_actor_optimizer.state_dict(), os.path.join(dpath, filenames["gun_actor_optim"]))
-            torch.save(self.gun_critic_optimizer.state_dict(), os.path.join(dpath, filenames["gun_critic_optim"]))
+            torch.save(
+                self.hero_actor_optimizer.state_dict(),
+                os.path.join(dpath, filenames["hero_actor_optim"]),
+            )
+            torch.save(
+                self.hero_critic_optimizer.state_dict(),
+                os.path.join(dpath, filenames["hero_critic_optim"]),
+            )
+            torch.save(
+                self.gun_actor_optimizer.state_dict(),
+                os.path.join(dpath, filenames["gun_actor_optim"]),
+            )
+            torch.save(
+                self.gun_critic_optimizer.state_dict(),
+                os.path.join(dpath, filenames["gun_critic_optim"]),
+            )
 
             state_info: Dict[str, Any] = {
                 "agent_type": "PPO",
@@ -1111,7 +1506,7 @@ class AgentTheseusPPO:
                 "hero_critic_class": f"{type(self.hero_critic_net).__module__}.{type(self.hero_critic_net).__name__}",
                 "gun_actor_class": f"{type(self.gun_actor_net).__module__}.{type(self.gun_actor_net).__name__}",
                 "gun_critic_class": f"{type(self.gun_critic_net).__module__}.{type(self.gun_critic_net).__name__}",
-                 # --- Store Network Architecture Details ---
+                # --- Store Network Architecture Details ---
                 "hero_hidden_channels": self.hero_hidden_channels,
                 "gun_hidden_channels": self.gun_hidden_channels,
                 # Optional: store out_channels if they might differ from defaults
@@ -1119,7 +1514,9 @@ class AgentTheseusPPO:
                 # "gun_out_channels": self.gun_actor_net.fc.out_features,
                 # ------------------------------------------
                 # PPO Hyperparameters
-                "learning_rate": self.hero_actor_optimizer.param_groups[0]['lr'], # Assume same LR for all
+                "learning_rate": self.hero_actor_optimizer.param_groups[0][
+                    "lr"
+                ],  # Assume same LR for all
                 "discount_factor": self.discount_factor,
                 "horizon": self.horizon,
                 "epochs_per_update": self.epochs_per_update,
@@ -1143,10 +1540,15 @@ class AgentTheseusPPO:
             return dpath
 
         except AttributeError as e:
-             self.logger.error(f"Failed to dump agent state due to missing attribute (likely hidden_channels): {e}", exc_info=True)
-             return None
+            self.logger.error(
+                f"Failed to dump agent state due to missing attribute (likely hidden_channels): {e}",
+                exc_info=True,
+            )
+            return None
         except Exception as e:
-            self.logger.error(f"Failed to dump PPO agent state to {dpath}: {e}", exc_info=True)
+            self.logger.error(
+                f"Failed to dump PPO agent state to {dpath}: {e}", exc_info=True
+            )
             return None
 
     @classmethod
@@ -1160,7 +1562,9 @@ class AgentTheseusPPO:
             logger.error(f"Load path is not a valid directory: {load_path_str}")
             return None
 
-        yaml_files = [f for f in os.listdir(load_path_str) if f.endswith('_config.yaml')]
+        yaml_files = [
+            f for f in os.listdir(load_path_str) if f.endswith("_config.yaml")
+        ]
         if not yaml_files:
             logger.error(f"No '_config.yaml' file found in: {load_path_str}")
             return None
@@ -1172,55 +1576,72 @@ class AgentTheseusPPO:
             with open(yaml_path, "r") as f:
                 state_info: Dict[str, Any] = yaml.safe_load(f)
         except Exception as e:
-            logger.error(f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True)
+            logger.error(
+                f"Error reading YAML configuration {yaml_path}: {e}", exc_info=True
+            )
             return None
 
         # --- Verify Agent Type ---
         if state_info.get("agent_type") != "PPO":
-            logger.error(f"Config file indicates agent type is {state_info.get('agent_type')}, not PPO.")
+            logger.error(
+                f"Config file indicates agent type is {state_info.get('agent_type')}, not PPO."
+            )
             return None
 
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Loading models onto device: {device}")
 
         try:
+
             def get_class(class_path: str) -> Type:
-                module_path, class_name = class_path.rsplit('.', 1)
+                module_path, class_name = class_path.rsplit(".", 1)
                 module = importlib.import_module(module_path)
                 return getattr(module, class_name)
 
             # --- Get Network Architecture Details ---
             try:
-                hero_hidden = state_info['hero_hidden_channels']
-                gun_hidden = state_info['gun_hidden_channels']
+                hero_hidden = state_info["hero_hidden_channels"]
+                gun_hidden = state_info["gun_hidden_channels"]
                 logger.info(f"Loaded Hero Hidden Channels: {hero_hidden}")
                 logger.info(f"Loaded Gun Hidden Channels: {gun_hidden}")
                 # Optional: Load out_channels if saved
                 # hero_out = state_info.get('hero_out_channels', HERO_ACTION_SPACE_SIZE)
                 # gun_out = state_info.get('gun_out_channels', GUN_ACTION_SPACE_SIZE)
             except KeyError as e:
-                logger.error(f"Missing required network architecture key '{e}' in config file {yaml_path}. "
-                             f"Cannot reconstruct networks.")
+                logger.error(
+                    f"Missing required network architecture key '{e}' in config file {yaml_path}. "
+                    f"Cannot reconstruct networks."
+                )
                 return None
 
             # --- Reconstruct Networks ---
-            HeroActorClass = get_class(state_info['hero_actor_class'])
-            HeroCriticClass = get_class(state_info['hero_critic_class'])
-            GunActorClass = get_class(state_info['gun_actor_class'])
-            GunCriticClass = get_class(state_info['gun_critic_class'])
+            HeroActorClass = get_class(state_info["hero_actor_class"])
+            HeroCriticClass = get_class(state_info["hero_critic_class"])
+            GunActorClass = get_class(state_info["gun_actor_class"])
+            GunCriticClass = get_class(state_info["gun_critic_class"])
 
             # Instantiate networks WITH hidden_channels (and optionally out_channels)
             # Assuming actor/critic pairs share the same architecture params
-            hero_actor_net = HeroActorClass(hidden_channels=hero_hidden) #, out_channels=hero_out)
-            hero_critic_net = HeroCriticClass(hidden_channels=hero_hidden) #, out_channels=1) # Critic outputs single value
-            gun_actor_net = GunActorClass(hidden_channels=gun_hidden) #, out_channels=gun_out)
-            gun_critic_net = GunCriticClass(hidden_channels=gun_hidden) #, out_channels=1) # Critic outputs single value
+            hero_actor_net = HeroActorClass(
+                hidden_channels=hero_hidden
+            )  # , out_channels=hero_out)
+            hero_critic_net = HeroCriticClass(
+                hidden_channels=hero_hidden
+            )  # , out_channels=1) # Critic outputs single value
+            gun_actor_net = GunActorClass(
+                hidden_channels=gun_hidden
+            )  # , out_channels=gun_out)
+            gun_critic_net = GunCriticClass(
+                hidden_channels=gun_hidden
+            )  # , out_channels=1) # Critic outputs single value
 
             # Load state dicts
             def _load_state_dict(net: nn.Module, file_key: str):
                 file_path = os.path.join(load_path_str, state_info[file_key])
                 if not os.path.exists(file_path):
-                     raise FileNotFoundError(f"Network state file not found: {file_path}")
+                    raise FileNotFoundError(
+                        f"Network state file not found: {file_path}"
+                    )
                 net.load_state_dict(torch.load(file_path, map_location=device))
                 logger.debug(f"Loaded state dict from: {file_path}")
 
@@ -1231,15 +1652,26 @@ class AgentTheseusPPO:
 
             logger.info("Network state dicts loaded successfully.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, TypeError, Exception) as e:
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            TypeError,
+            Exception,
+        ) as e:
             # Catch TypeError here as well for constructor issues
-            logger.error(f"Error reconstructing or loading network models: {e}", exc_info=True)
+            logger.error(
+                f"Error reconstructing or loading network models: {e}", exc_info=True
+            )
             return None
 
         # --- Reconstruct Optimizers (AFTER moving networks to device) ---
         try:
             learning_rate = state_info.get("learning_rate", DEFAULT_LEARNING_RATE_PPO)
-            OptimizerClass = get_class(state_info.get('optimizer_class', 'torch.optim.AdamW'))
+            OptimizerClass = get_class(
+                state_info.get("optimizer_class", "torch.optim.AdamW")
+            )
 
             # Move networks to device BEFORE creating optimizers that need their params
             hero_actor_net.to(device)
@@ -1247,46 +1679,81 @@ class AgentTheseusPPO:
             gun_actor_net.to(device)
             gun_critic_net.to(device)
 
-            hero_actor_optimizer = OptimizerClass(hero_actor_net.parameters(), lr=learning_rate)
-            hero_critic_optimizer = OptimizerClass(hero_critic_net.parameters(), lr=learning_rate)
-            gun_actor_optimizer = OptimizerClass(gun_actor_net.parameters(), lr=learning_rate)
-            gun_critic_optimizer = OptimizerClass(gun_critic_net.parameters(), lr=learning_rate)
+            hero_actor_optimizer = OptimizerClass(
+                hero_actor_net.parameters(), lr=learning_rate
+            )
+            hero_critic_optimizer = OptimizerClass(
+                hero_critic_net.parameters(), lr=learning_rate
+            )
+            gun_actor_optimizer = OptimizerClass(
+                gun_actor_net.parameters(), lr=learning_rate
+            )
+            gun_critic_optimizer = OptimizerClass(
+                gun_critic_net.parameters(), lr=learning_rate
+            )
 
             # Load optimizer states if files exist
-            optim_files = ["hero_actor_optim", "hero_critic_optim", "gun_actor_optim", "gun_critic_optim"]
-            optimizers = [hero_actor_optimizer, hero_critic_optimizer, gun_actor_optimizer, gun_critic_optimizer]
+            optim_files = [
+                "hero_actor_optim",
+                "hero_critic_optim",
+                "gun_actor_optim",
+                "gun_critic_optim",
+            ]
+            optimizers = [
+                hero_actor_optimizer,
+                hero_critic_optimizer,
+                gun_actor_optimizer,
+                gun_critic_optimizer,
+            ]
             for name, optim in zip(optim_files, optimizers):
                 optim_file_key = f"{name}_file"
                 if optim_file_key in state_info:
                     optim_path = os.path.join(load_path_str, state_info[optim_file_key])
                     if os.path.exists(optim_path):
                         try:
-                             optim.load_state_dict(torch.load(optim_path, map_location=device))
-                             logger.info(f"{name.replace('_', ' ').title()} state loaded from {optim_path}.")
+                            optim.load_state_dict(
+                                torch.load(optim_path, map_location=device)
+                            )
+                            logger.info(
+                                f"{name.replace('_', ' ').title()} state loaded from {optim_path}."
+                            )
                         except Exception as load_err:
-                             logger.warning(f"Could not load optimizer state for {name} from {optim_path}: {load_err}. Optimizer will be reinitialized.")
+                            logger.warning(
+                                f"Could not load optimizer state for {name} from {optim_path}: {load_err}. Optimizer will be reinitialized."
+                            )
                     else:
-                        logger.warning(f"{name.replace('_', ' ').title()} state file not found: {optim_path}. Optimizer will be reinitialized.")
+                        logger.warning(
+                            f"{name.replace('_', ' ').title()} state file not found: {optim_path}. Optimizer will be reinitialized."
+                        )
                 else:
-                     logger.warning(f"Optimizer state file key '{optim_file_key}' not found in config. Optimizer will be reinitialized.")
-
+                    logger.warning(
+                        f"Optimizer state file key '{optim_file_key}' not found in config. Optimizer will be reinitialized."
+                    )
 
             logger.info("Optimizers reconstructed.")
 
-        except (ImportError, AttributeError, KeyError, FileNotFoundError, Exception) as e:
-            logger.error(f"Error reconstructing or loading optimizers: {e}", exc_info=True)
+        except (
+            ImportError,
+            AttributeError,
+            KeyError,
+            FileNotFoundError,
+            Exception,
+        ) as e:
+            logger.error(
+                f"Error reconstructing or loading optimizers: {e}", exc_info=True
+            )
             return None
 
         # --- Reconstruct Environment ---
         try:
-             # Assuming Environment class can be instantiated without arguments
-             # If it needs args, they might need to be saved/loaded too
-             env = Environment()
-             logger.info("Environment instantiated.")
+            # Assuming Environment class can be instantiated without arguments
+            # If it needs args, they might need to be saved/loaded too
+            env = Environment()
+            logger.info("Environment instantiated.")
         except Exception as e:
-             logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
-             # Decide if this is critical - maybe return None or continue without env?
-             return None # Likely critical for the agent
+            logger.error(f"Failed to instantiate Environment: {e}", exc_info=True)
+            # Decide if this is critical - maybe return None or continue without env?
+            return None  # Likely critical for the agent
 
         # --- Instantiate Agent with loaded state ---
         try:
@@ -1295,20 +1762,26 @@ class AgentTheseusPPO:
                 hero_critic_net=hero_critic_net,
                 gun_actor_net=gun_actor_net,
                 gun_critic_net=gun_critic_net,
-                env=env, # Pass the newly created env instance
+                env=env,  # Pass the newly created env instance
                 optimizer_class=OptimizerClass,
-                learning_rate=learning_rate, # LR is set in optimizers already, but good to pass for consistency
-                discount_factor=state_info.get('discount_factor', DEFAULT_DISCOUNT_FACTOR_PPO),
-                horizon=state_info.get('horizon', DEFAULT_HORIZON),
-                epochs_per_update=state_info.get('epochs_per_update', DEFAULT_EPOCHS_PER_UPDATE),
-                mini_batch_size=state_info.get('mini_batch_size', DEFAULT_MINI_BATCH_SIZE_PPO),
-                clip_epsilon=state_info.get('clip_epsilon', DEFAULT_CLIP_EPSILON),
-                gae_lambda=state_info.get('gae_lambda', DEFAULT_GAE_LAMBDA),
-                entropy_coeff=state_info.get('entropy_coeff', DEFAULT_ENTROPY_COEFF),
-                vf_coeff=state_info.get('vf_coeff', DEFAULT_VF_COEFF),
-                log_window_size=state_info.get('log_window_size', LOGGING_WINDOW),
-                save_interval=state_info.get('save_interval', SAVE_INTERVAL),
-             )
+                learning_rate=learning_rate,  # LR is set in optimizers already, but good to pass for consistency
+                discount_factor=state_info.get(
+                    "discount_factor", DEFAULT_DISCOUNT_FACTOR_PPO
+                ),
+                horizon=state_info.get("horizon", DEFAULT_HORIZON),
+                epochs_per_update=state_info.get(
+                    "epochs_per_update", DEFAULT_EPOCHS_PER_UPDATE
+                ),
+                mini_batch_size=state_info.get(
+                    "mini_batch_size", DEFAULT_MINI_BATCH_SIZE_PPO
+                ),
+                clip_epsilon=state_info.get("clip_epsilon", DEFAULT_CLIP_EPSILON),
+                gae_lambda=state_info.get("gae_lambda", DEFAULT_GAE_LAMBDA),
+                entropy_coeff=state_info.get("entropy_coeff", DEFAULT_ENTROPY_COEFF),
+                vf_coeff=state_info.get("vf_coeff", DEFAULT_VF_COEFF),
+                log_window_size=state_info.get("log_window_size", LOGGING_WINDOW),
+                save_interval=state_info.get("save_interval", SAVE_INTERVAL),
+            )
 
             # --- Restore specific state variables ---
             # Re-assign the loaded optimizer instances to the agent
@@ -1318,8 +1791,8 @@ class AgentTheseusPPO:
             agent.gun_critic_optimizer = gun_critic_optimizer
 
             # Restore training progress metrics
-            agent.total_reward_hero = state_info.get('total_reward_hero', 0.0)
-            agent.total_reward_gun = state_info.get('total_reward_gun', 0.0)
+            agent.total_reward_hero = state_info.get("total_reward_hero", 0.0)
+            agent.total_reward_gun = state_info.get("total_reward_gun", 0.0)
             # Note: Rolling deques (like episode_rewards_hero_deque) are usually not saved/loaded
             # as they represent recent history, which becomes irrelevant after loading.
             # total_steps is reset after each update, so no need to load.
@@ -1334,5 +1807,8 @@ class AgentTheseusPPO:
             return agent
 
         except Exception as e:
-            logger.error(f"Error instantiating AgentTheseusPPO during final load step: {e}", exc_info=True)
+            logger.error(
+                f"Error instantiating AgentTheseusPPO during final load step: {e}",
+                exc_info=True,
+            )
             return None

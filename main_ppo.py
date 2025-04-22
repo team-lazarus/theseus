@@ -4,7 +4,7 @@ import os
 from rich.logging import RichHandler
 
 # --- PPO Agent Import ---
-from theseus.agent_ppo import AgentTheseusPPO # Assuming agent saved as agent_ppo.py
+from theseus.agent_ppo import AgentTheseusPPO  # Assuming agent saved as agent_ppo.py
 
 # --- Network Imports (Assuming GNNs can act as Actor/Critic) ---
 # If you have separate Critic classes, import them here.
@@ -13,28 +13,29 @@ from theseus.models.GraphDQN.ActionGNN import GunGNN
 
 # --- Utility Imports ---
 from theseus.utils.network import Environment
+
 # import theseus.constants as c # Constants might be defined within Agent or here
 
 # --- Configuration ---
-HIDDEN_CHANNELS = 16 # Example hidden size
+HIDDEN_CHANNELS = 16  # Example hidden size
 HERO_ACTION_SPACE_SIZE = 9
 GUN_ACTION_SPACE_SIZE = 8
 
 # --- PPO Hyperparameters ---
-PPO_LEARNING_RATE = 3e-4       # Typical PPO learning rate
-PPO_DISCOUNT_FACTOR = 0.99     # Gamma
-PPO_HORIZON = 2048             # Steps collected per rollout (N)
-PPO_EPOCHS_PER_UPDATE = 10     # Optimization epochs per rollout (K)
-PPO_MINI_BATCH_SIZE = 64       # Minibatch size for optimization
-PPO_CLIP_EPSILON = 0.2         # PPO clipping parameter (epsilon)
-PPO_GAE_LAMBDA = 0.95          # GAE parameter (lambda)
-PPO_ENTROPY_COEFF = 0.01       # Entropy bonus coefficient
-PPO_VF_COEFF = 0.5             # Value function loss coefficient
-PPO_LOG_WINDOW = 50            # Episodes for rolling average metrics
-PPO_SAVE_INTERVAL = 200        # Save checkpoint every N episodes
+PPO_LEARNING_RATE = 3e-4  # Typical PPO learning rate
+PPO_DISCOUNT_FACTOR = 0.99  # Gamma
+PPO_HORIZON = 2048  # Steps collected per rollout (N)
+PPO_EPOCHS_PER_UPDATE = 10  # Optimization epochs per rollout (K)
+PPO_MINI_BATCH_SIZE = 64  # Minibatch size for optimization
+PPO_CLIP_EPSILON = 0.2  # PPO clipping parameter (epsilon)
+PPO_GAE_LAMBDA = 0.95  # GAE parameter (lambda)
+PPO_ENTROPY_COEFF = 0.01  # Entropy bonus coefficient
+PPO_VF_COEFF = 0.5  # Value function loss coefficient
+PPO_LOG_WINDOW = 50  # Episodes for rolling average metrics
+PPO_SAVE_INTERVAL = 200  # Save checkpoint every N episodes
 NUM_TRAINING_EPISODES = 50000  # Total episodes to train for
 
-SAVED_MODEL="model_saves_ppo/theseus_ppo_20250414_231934"
+SAVED_MODEL = "model_saves_ppo/theseus_ppo_20250414_231934"
 
 
 def train_ppo():
@@ -50,20 +51,20 @@ def train_ppo():
     # --- Instantiate Actor and Critic Networks ---
     # CRITICAL ASSUMPTION: HeroGNN/GunGNN can output a single value when out_channels=1
     # If not, you need dedicated Critic GNN classes.
-    #agent = AgentTheseusPPO.load(SAVED_MODEL)
+    # agent = AgentTheseusPPO.load(SAVED_MODEL)
     if agent == None:
         try:
             hero_actor = HeroGNN(
                 hidden_channels=HIDDEN_CHANNELS, out_channels=HERO_ACTION_SPACE_SIZE
             )
-            hero_critic = HeroGNN( # Using HeroGNN as critic
-                hidden_channels=HIDDEN_CHANNELS, out_channels=1 # Output a single value
+            hero_critic = HeroGNN(  # Using HeroGNN as critic
+                hidden_channels=HIDDEN_CHANNELS, out_channels=1  # Output a single value
             )
             gun_actor = GunGNN(
                 hidden_channels=HIDDEN_CHANNELS, out_channels=GUN_ACTION_SPACE_SIZE
             )
-            gun_critic = GunGNN( # Using GunGNN as critic
-                hidden_channels=HIDDEN_CHANNELS, out_channels=1 # Output a single value
+            gun_critic = GunGNN(  # Using GunGNN as critic
+                hidden_channels=HIDDEN_CHANNELS, out_channels=1  # Output a single value
             )
             train_logger.info("Actor and Critic GNNs instantiated.")
         except Exception as e:
@@ -110,7 +111,9 @@ if __name__ == "__main__":
         level="INFO",
         format=FORMAT,
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, show_path=False, markup=True)], # Enable markup
+        handlers=[
+            RichHandler(rich_tracebacks=True, show_path=False, markup=True)
+        ],  # Enable markup
     )
     # Silence verbose loggers if necessary
     logging.getLogger("torch_geometric").setLevel(logging.WARNING)
@@ -118,19 +121,24 @@ if __name__ == "__main__":
 
     main_logger = logging.getLogger("main_ppo")
     main_logger.info(
-        "[bold green]>>> Starting Theseus PPO GNN Training <<<[/]", extra={"markup": True}
+        "[bold green]>>> Starting Theseus PPO GNN Training <<<[/]",
+        extra={"markup": True},
     )
 
     try:
-        train_ppo() # Call the PPO training function
+        train_ppo()  # Call the PPO training function
     except KeyboardInterrupt:
-        main_logger.warning("[bold yellow]>>> Training interrupted by user <<<[/]", extra={"markup": True})
+        main_logger.warning(
+            "[bold yellow]>>> Training interrupted by user <<<[/]",
+            extra={"markup": True},
+        )
     except Exception as main_e:
         main_logger.critical(
             f"Unhandled exception in main PPO training loop: {main_e}", exc_info=True
         )
     finally:
         main_logger.info(
-            "[bold red]>>> PPO Training finished or stopped <<<[/]", extra={"markup": True}
+            "[bold red]>>> PPO Training finished or stopped <<<[/]",
+            extra={"markup": True},
         )
         # Add cleanup if needed (e.g., close environment)

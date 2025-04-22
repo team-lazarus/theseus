@@ -40,7 +40,7 @@ def get_parser() -> ArgumentParser:
     group.add_argument("-t", "--train", action="store_true")
     group.add_argument("-p", "--play", action="store_true")
     parser.add_argument("--model", default="DQN", choices=["DQN", "PPO"])
-    parser.add_argument("-e", "--episodes", type=int)
+    parser.add_argument("-e", "--episodes", default=9999, type=int)
     parser.add_argument("--path")
 
     return parser
@@ -51,14 +51,15 @@ def train(path: str = "", episodes: int = 9999) -> None:
     train_logger = logging.getLogger("train_loop")
     train_logger.info("Initializing environment and combined GNN agent...")
 
-    try:
+    if path != "" and path != None:
+    # try:
         agent = AgentTheseusGNN.load(path)
         if not agent == None:
             agent.train(episodes)
 
         return
-    except Exception as e:
-        train_logger.critical("Failed to load model, proceeding with new run.")
+    # except Exception as e:
+    #     train_logger.critical("Failed to load model, proceeding with new run.")
 
     env = Environment()
     device = "cuda" if torch.cuda.is_available() else "cpu"
