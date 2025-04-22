@@ -30,7 +30,7 @@ class Environment(object):
         if not self.tcp_client.connected:
             self.tcp_client.connect()
         game_response = self.tcp_client.read()
-        state, _, _ = self.parse_game_response(game_response)
+        state, _, _, _ = self.parse_game_response(game_response)
 
         return state
 
@@ -59,7 +59,7 @@ class Environment(object):
         #     print(game_response)
         #     game_response = self.tcp_client.read()
 
-        next_state, terminated, reward = self.parse_game_response(game_response)
+        next_state, terminated, _, reward = self.parse_game_response(game_response)
 
         return next_state, reward, terminated
 
@@ -75,6 +75,7 @@ class Environment(object):
             "gun_reward" : float,
             "hero_reward" : float,
             "terminated" : bool,
+            "wave_clear" : bool,
             "hero": {
                 "position": [x, y],
                 "health": 0-10,
@@ -125,10 +126,12 @@ class Environment(object):
         walls = game_response["walls"]
 
         terminated = bool(game_response["terminated"])
+        wave_clear = bool(game_response["wave_clear"])
 
         return (
             State(hero, bullets, enemies, doors, backdoor, walls),
             terminated,
+            wave_clear,
             (game_response["hero_reward"], game_response["gun_reward"]),
         )
 
