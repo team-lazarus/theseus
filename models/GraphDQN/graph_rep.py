@@ -72,7 +72,10 @@ class GunGraph:
 
         num_enemies = len(state.enemies)
         self.data["enemy"].num_nodes = num_enemies
-        enemy_features = [[e.x, e.y, e.type_, e.health] for e in state.enemies]
+        enemy_features = [
+            [state.hero.x - e.x, state.hero.y - e.y, e.type_, e.health]
+            for e in state.enemies
+        ]
         self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(
             -1, 4
         )
@@ -141,7 +144,10 @@ class HeroGraph:
         self.data["door"].num_nodes = num_doors
         self.data["wall"].num_nodes = num_walls
 
-        enemy_features = [[e.x, e.y, e.type_, e.health] for e in state.enemies]
+        enemy_features = [
+            [state.hero.x - e.x, state.hero.y - e.y, e.type_, e.health]
+            for e in state.enemies
+        ]
         self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(
             -1, 4
         )
