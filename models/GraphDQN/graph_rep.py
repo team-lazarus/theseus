@@ -145,7 +145,7 @@ class HeroGraph:
         self.data["wall"].num_nodes = num_walls
 
         enemy_features = [
-            [state.hero.x - e.x, state.hero.y - e.y, e.type_, e.health]
+            [e.x, e.y, e.type_, e.health]
             for e in state.enemies
         ]
         self.data["enemy"].x = torch.tensor(enemy_features, dtype=torch.float).view(

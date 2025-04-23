@@ -51,7 +51,7 @@ class State(object):
         backdoor: List[float],
         walls: List[List[float]],
     ) -> None:
-
+        
         self.hero = Player(hero)
         self.bullets = list(map(Bullet, bullets))
         self.enemies = list(map(Enemy, enemies))
