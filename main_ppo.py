@@ -35,7 +35,7 @@ PPO_LOG_WINDOW = 50  # Episodes for rolling average metrics
 PPO_SAVE_INTERVAL = 200  # Save checkpoint every N episodes
 NUM_TRAINING_EPISODES = 50000  # Total episodes to train for
 
-SAVED_MODEL="model_saves_ppo/theseus_ppo_20250422_224425/ "
+SAVED_MODEL="model_saves_ppo/theseus_ppo_20250423_210709/" 
 
 
 def train_ppo():

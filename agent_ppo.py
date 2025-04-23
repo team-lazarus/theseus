@@ -951,9 +951,9 @@ class AgentTheseusPPO:
             GunCriticClass = get_class(state_info['gun_critic_class'])
 
             hero_actor_net = HeroActorClass(hidden_channels=hero_hidden)
-            hero_critic_net = HeroCriticClass(hidden_channels=hero_hidden)
+            hero_critic_net = HeroCriticClass(hidden_channels=hero_hidden, out_channels=1)
             gun_actor_net = GunActorClass(hidden_channels=gun_hidden)
-            gun_critic_net = GunCriticClass(hidden_channels=gun_hidden)
+            gun_critic_net = GunCriticClass(hidden_channels=gun_hidden, out_channels=1)
 
             def _load_state_dict(net: nn.Module, file_key: str):
                 if file_key not in state_info:
