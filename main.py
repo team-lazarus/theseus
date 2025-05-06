@@ -39,7 +39,7 @@ def get_parser() -> ArgumentParser:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("-t", "--train", action="store_true")
     group.add_argument("-p", "--play", action="store_true")
-    parser.add_argument("--model", default="DQN", choices=["DQN", "PPO"])
+    parser.add_argument("--model", default="PPO", choices=["DQN", "PPO"])
     parser.add_argument("-e", "--episodes", default=9999, type=int)
     parser.add_argument("--path")
 
@@ -168,8 +168,85 @@ def train_ppo(path: str = "", episodes: int = 9999):
     agent.train(num_episodes=NUM_TRAINING_EPISODES)
 
 
-def play(path: str):
-    pass
+def play(
+    model_dir_path: str, # Path to the directory containing model files
+) -> None:
+    """
+    Runs continuous play using directly loaded policy networks. MINIMAL VERSION.
+
+    Args:
+        model_dir_path: Path to the directory containing 'hero_policy_state.pth'
+                        and 'gun_policy_state.pth'.
+    """
+    print(f"--- Starting Minimal Play (Models from: {model_dir_path}) ---")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # --- Load Networks Directly (Minimal Error Checks) ---
+    # Assumes standard filenames saved by AgentTheseusGNN dump (state_dict versions)
+    hero_policy_path = os.path.join(model_dir_path, "hero_actor_state.pth")
+    gun_policy_path = os.path.join(model_dir_path, "gun_actor_state.pth")
+
+    # CRITICAL: You need to know the hidden_channels and out_channels for your models
+    # to instantiate them before loading state_dict.
+    # These should ideally be saved in a config file within model_dir_path.
+    # Using placeholders here - YOU MUST REPLACE THESE WITH ACTUAL VALUES.
+    HERO_HIDDEN = 16 # Example - MUST MATCH SAVED MODEL
+    GUN_HIDDEN = 16  # Example - MUST MATCH SAVED MODEL
+    HERO_OUT = 9
+    GUN_OUT = 8
+
+    hero_net = HeroGNN(hidden_channels=HERO_HIDDEN, out_channels=HERO_OUT)
+    gun_net = GunGNN(hidden_channels=GUN_HIDDEN, out_channels=GUN_OUT)
+
+    hero_net.load_state_dict(torch.load(hero_policy_path, map_location=device))
+    gun_net.load_state_dict(torch.load(gun_policy_path, map_location=device))
+
+    hero_net.to(device).eval()
+    gun_net.to(device).eval()
+    print("Policy networks loaded.")
+
+    # --- Initialize Environment ---
+    env = Environment()
+    state = env.initialise_environment()
+    print("Environment initialized. Starting play loop (Ctrl+C to stop)...")
+
+    # --- Continuous Play Loop ---
+    while True:
+        try:
+            move_action, shoot_action = 0, 0
+
+            with torch.no_grad():
+                h_graph = hero_net.preprocess_state(state)
+                if h_graph: # Simplified check
+                    h_q = hero_net(h_graph.to(device))
+                    if h_q.numel() > 0: move_action = h_q.squeeze().argmax().item()
+
+                g_graph = gun_net.preprocess_state(state)
+                if g_graph: # Simplified check
+                    g_q = gun_net(g_graph.to(device))
+                    if g_q.numel() > 0: shoot_action = g_q.squeeze().argmax().item()
+
+            action_list = [move_action, shoot_action, 0, 0]
+            next_s, _, terminated_flag = env.step(action_list)[:3]
+
+            if bool(terminated_flag):
+                print("Episode terminated. Resetting...")
+                state = env.initialise_environment()
+            else:
+                state = next_s
+
+        except KeyboardInterrupt:
+            print("\nKeyboardInterrupt. Exiting play.")
+            break
+        except Exception as e:
+            print(f"\nERROR in play loop: {e}. Attempting to reset...")
+            try:
+                state = env.initialise_environment()
+            except Exception as reset_e:
+                print(f"CRITICAL: Reset failed after error: {reset_e}. Exiting.")
+                break
+
+    print("--- Minimal play finished. ---")
 
 
 if __name__ == "__main__":
@@ -184,7 +261,7 @@ if __name__ == "__main__":
 
     main_logger = logging.getLogger("main")
     main_logger.info(
-        "[bold green] Starting Theseus GNN Training [/]", extra={"markup": True}
+        "[bold green] Starting Theseus [/]", extra={"markup": True}
     )
 
     args = get_parser().parse_args()
